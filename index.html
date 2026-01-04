@@ -26,14 +26,10 @@
             font-family: 'Outfit', sans-serif;
             letter-spacing: -0.02em;
         }
-        
-        /* 右側主內容區域的藍紫漸層底色 (左到右) */
         .content-gradient-bg {
             background: linear-gradient(to right, #e0f2fe, #f3e8ff);
             background-attachment: fixed;
         }
-
-        /* Apple 風格漸層文字：藍色 (#3b82f6) 轉紫色 (#a855f7) (左到右) */
         .gradient-text {
             background: linear-gradient(to right, #3b82f6, #a855f7);
             -webkit-background-clip: text;
@@ -41,7 +37,6 @@
             background-clip: text;
             display: inline-block;
         }
-
         .premium-shadow {
             box-shadow: 0 20px 60px -15px rgba(0, 0, 0, 0.04);
         }
@@ -85,10 +80,12 @@
 <script type="importmap">
 {
   "imports": {
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
     "react": "https://esm.sh/react@^19.2.3",
-    "react/": "https://esm.sh/react@^19.2.3/"
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "vite": "https://esm.sh/vite@^7.3.0",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
   }
 }
 </script>
@@ -96,6 +93,7 @@
 </head>
 <body>
     <div id="root"></div>
-<script type="module" src="/index.tsx"></script>
+    <!-- 這是 Vite 部署必須的入口腳本標籤 -->
+    <script type="module" src="/index.tsx"></script>
 </body>
 </html>

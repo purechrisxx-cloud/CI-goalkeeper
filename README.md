@@ -1,20 +1,29 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
 
-# Run and deploy your AI Studio app
+# 🛡️ FOOTER BrandGuard - AI Creative Studio
 
-This contains everything you need to run your app locally.
+一個基於 Google Gemini 2.5/3 Pro 技術的智慧型品牌創意守護系統。
 
-View your app in AI Studio: https://ai.studio/apps/drive/1saU2RKLER_qYs9g7T8qji59Et_mB4uOZ
+## 🚀 快速上手 (無需安裝)
 
-## Run Locally
+1. **取得 API Key**: 到 [Google AI Studio](https://aistudio.google.com/) 申請。
+2. **直接執行**: 本專案採用原生 ESM 技術，只需將所有檔案放在任何靜態空間（如 GitHub Pages）即可執行。
 
-**Prerequisites:**  Node.js
+## 📂 檔案結構說明
 
+- `index.html`: 專案入口，包含 CSS 樣式與 Import Map。
+- `App.tsx`: 主程式邏輯與分頁控制。
+- `services/`: AI 核心邏輯 (Gemini API)。
+- `components/`: UI 元件 (側邊欄、審核介面等)。
+- `types.ts` & `constants.tsx`: 類型定義與品牌初始值。
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## 🛠️ 如何透過網頁上傳到 GitHub (不使用本地電腦指令)
+
+1. 在 GitHub 點擊 **"New Repository"**。
+2. 命名為 `footer-brandguard` 並建立。
+3. 點擊畫面上的 **"uploading an existing file"** 連結。
+4. 將本專案的所有資料夾與檔案拖拽進去。
+5. 點擊 **"Commit changes"**。
+6. 前往 **Settings > Pages**，將 Build and deployment 改為 **"Deploy from a branch"**，選擇 `main` 分支並儲存。
+
+---
+*本專案由 AI 輔助開發，致力於提升團隊素材產出效率。*
