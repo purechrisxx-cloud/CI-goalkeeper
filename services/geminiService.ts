@@ -9,40 +9,29 @@ export const auditAsset = async (
   campaignContext: string,
   modelName: string = 'gemini-3-flash-preview'
 ): Promise<AuditResult> => {
-  // 獲取 API Key (優先從環境變數取得)
+  // 直接使用環境變數中的 API Key，這是系統自動注入的
   const apiKey = process.env.API_KEY;
   
-  // 不再這裡拋出 Error，交給 SDK 嘗試執行，或在下面 catch 處理
+  // 根據 Google GenAI SDK 規範：必須在每次請求前使用 new 實例化，以確保使用最新的 Key 狀態
   const ai = new GoogleGenAI({ apiKey: apiKey || '' });
   
   const systemInstruction = `
-    你是一位「品牌創意教練與策略師」。你的目標是幫助團隊產出既符合品牌核心靈魂，又能達成商業目的的素材。
+    你是一位「品牌創意教練」。你的任務是協助團隊產出符合 ${ci.name} 品牌規範且具備市場共鳴的素材。
     
-    你的審核邏輯：
-    1. 靈魂契合：基於品牌故事 (${ci.brandStory}) 與使命 (${ci.mission})，審核素材是否傳遞了正確的價值觀。
-    2. 視覺一致：嚴格審核顏色 (${ci.primaryColor}, ${ci.secondaryColor}) 與風格指南 (${ci.styleGuidelines})。
-    3. 目的達成：評估素材是否能觸及目標受眾 (${ci.targetAudience}) 並達成其特定目的 (${intent})。
-    4. 創意能量：衡量視覺的驚艷程度與大膽程度。
+    審核原則：
+    1. 靈魂共鳴：素材是否傳達了品牌故事 (${ci.brandStory})。
+    2. 規範一致：檢查視覺風格 (${ci.styleGuidelines})、顏色 (${ci.primaryColor}, ${ci.secondaryColor})。
+    3. 目的達成：評估素材是否能觸動受眾 (${ci.targetAudience}) 並達成目的 (${intent})。
+    4. 迭代建議：給予 3 個具體的優化方向。
     
-    請輸出的 JSON 物件內容完全使用繁體中文。
+    請以繁體中文輸出 JSON 格式。
   `;
 
   const prompt = `
-    【品牌核心設定】
-    - 名稱：${ci.name}
-    - 故事背景：${ci.brandStory}
-    - 品牌識別：${ci.mission}
-    - 風格指南：${ci.styleGuidelines}
-    - 品牌人格：${ci.persona}
-    - 主/副色：${ci.primaryColor} / ${ci.secondaryColor}
-
-    【此次素材情境】
-    - 目標受眾：${ci.targetAudience}
-    - 素材目的：${intent || '品牌形象建立'}
-    - 活動脈絡：${campaignContext}
-
-    請針對以上資訊與附件圖片進行深度審核。
-    你需要提供具體的「教練式建議」，在指出不合規處的同時，也建議如何讓創意更具吸引力。
+    請分析這張素材。
+    品牌人格：${ci.persona}
+    目前的素材目的：${intent || '品牌形象建立'}
+    目標受眾：${ci.targetAudience}
   `;
 
   try {
@@ -90,14 +79,15 @@ export const auditAsset = async (
       }
     });
 
-    const text = response.text;
-    if (!text) throw new Error("AI 回傳內容為空");
-    return JSON.parse(text);
+    const result = response.text;
+    if (!result) throw new Error("AI 無法解析素材內容。");
+    return JSON.parse(result);
   } catch (error: any) {
     console.error("Gemini API Error:", error);
-    if (error.message?.includes("API key not valid") || error.message?.includes("401") || error.message?.includes("403")) {
-      throw new Error("API Key 無效或尚未連結。請確保環境變數已設定，或點擊右上角重新連結。");
+    // 重新封裝錯誤訊息，避免讓使用者看到混亂的 API 報錯
+    if (error.message?.includes("API key")) {
+      throw new Error("AI 連線失敗：環境變數中的 API Key 無效或尚未生效。請確認 Vercel 環境設定。");
     }
-    throw new Error(`AI 分析失敗：${error.message}`);
+    throw new Error(`分析失敗：${error.message}`);
   }
 };
