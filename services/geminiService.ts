@@ -6,32 +6,31 @@ export const auditAsset = async (
   imageData: string,
   ci: BrandCI,
   intent: string,
-  campaignContext: string,
+  campaignContext: string = '團隊內部創意審核',
   modelName: string = 'gemini-3-flash-preview'
 ): Promise<AuditResult> => {
-  // 直接使用環境變數中的 API Key，這是系統自動注入的
+  // CRITICAL: 根據規範，必須在每次請求前建立新實例，以確保使用最新的 process.env.API_KEY
   const apiKey = process.env.API_KEY;
   
-  // 根據 Google GenAI SDK 規範：必須在每次請求前使用 new 實例化，以確保使用最新的 Key 狀態
+  // 這裡不直接報錯 API Key 缺失，因為我們讓 UI 去處理連線邏輯
   const ai = new GoogleGenAI({ apiKey: apiKey || '' });
   
   const systemInstruction = `
-    你是一位「品牌創意教練」。你的任務是協助團隊產出符合 ${ci.name} 品牌規範且具備市場共鳴的素材。
+    你是一位專業的「品牌創意教練」。任務是協助產出符合 ${ci.name} 品牌規範且具市場共鳴的素材。
+    品牌人格：${ci.persona}
+    語調風格：${ci.tone}
+    受眾：${ci.targetAudience}
     
-    審核原則：
-    1. 靈魂共鳴：素材是否傳達了品牌故事 (${ci.brandStory})。
-    2. 規範一致：檢查視覺風格 (${ci.styleGuidelines})、顏色 (${ci.primaryColor}, ${ci.secondaryColor})。
-    3. 目的達成：評估素材是否能觸動受眾 (${ci.targetAudience}) 並達成目的 (${intent})。
-    4. 迭代建議：給予 3 個具體的優化方向。
-    
+    請深度分析素材的顏色、排版、Logo 擺放以及整體構圖。
+    評分標準 0-100。
     請以繁體中文輸出 JSON 格式。
   `;
 
   const prompt = `
     請分析這張素材。
-    品牌人格：${ci.persona}
-    目前的素材目的：${intent || '品牌形象建立'}
-    目標受眾：${ci.targetAudience}
+    素材目的：${intent || '品牌形象傳達'}
+    品牌背景：${ci.brandStory}
+    視覺指南：${ci.styleGuidelines}
   `;
 
   try {
@@ -80,14 +79,14 @@ export const auditAsset = async (
     });
 
     const result = response.text;
-    if (!result) throw new Error("AI 無法解析素材內容。");
+    if (!result) throw new Error("AI 回傳內容為空");
     return JSON.parse(result);
   } catch (error: any) {
     console.error("Gemini API Error:", error);
-    // 重新封裝錯誤訊息，避免讓使用者看到混亂的 API 報錯
-    if (error.message?.includes("API key")) {
-      throw new Error("AI 連線失敗：環境變數中的 API Key 無效或尚未生效。請確認 Vercel 環境設定。");
+    // 捕獲特定金鑰錯誤
+    if (error.message?.includes("API key") || error.message?.includes("403") || error.message?.includes("401")) {
+      throw new Error("AI 授權無效。請點擊上方按鈕重新選取有效的 API 金鑰。");
     }
-    throw new Error(`分析失敗：${error.message}`);
+    throw error;
   }
 };
