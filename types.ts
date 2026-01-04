@@ -1,4 +1,11 @@
 
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  picture: string;
+}
+
 export interface BrandCI {
   id: string;
   name: string;
@@ -48,8 +55,8 @@ export interface AuditResult {
 
 export interface Asset {
   id: string;
-  groupId: string; // 新增：用於關聯同一素材的多次迭代
-  version: number; // 新增：版本號
+  groupId: string;
+  version: number;
   url: string;
   name: string;
   intent?: string;

@@ -24,6 +24,7 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
   const [result, setResult] = useState<AuditResult | null>(null);
   const [selectedModel, setSelectedModel] = useState(MODELS[0].id);
   const [isConnected, setIsConnected] = useState(false);
+  const [hasBridge, setHasBridge] = useState(false);
   
   const [currentGroupId, setCurrentGroupId] = useState<string | null>(null);
   const [currentVersion, setCurrentVersion] = useState<number>(1);
@@ -31,29 +32,38 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
 
   // 初始化時檢查金鑰狀態
   useEffect(() => {
-    const checkKey = async () => {
-      if ((window as any).aistudio?.hasSelectedApiKey) {
-        const hasKey = await (window as any).aistudio.hasSelectedApiKey();
-        setIsConnected(hasKey);
+    const checkConnection = async () => {
+      // 1. 檢查是否有環境變數金鑰 (Vercel 設定)
+      const hasEnvKey = !!process.env.API_KEY && process.env.API_KEY !== "undefined";
+      
+      // 2. 檢查是否有 Google AI Studio 橋接器
+      const bridge = (window as any).aistudio;
+      const hasBridgeAvailable = !!bridge?.hasSelectedApiKey;
+      setHasBridge(hasBridgeAvailable);
+
+      if (hasBridgeAvailable) {
+        const selected = await bridge.hasSelectedApiKey();
+        setIsConnected(hasEnvKey || selected);
+      } else {
+        setIsConnected(hasEnvKey);
       }
     };
-    checkKey();
+    checkConnection();
   }, []);
 
   const handleConnect = async () => {
-    if ((window as any).aistudio?.openSelectKey) {
+    if (hasBridge) {
       await (window as any).aistudio.openSelectKey();
-      // 根據指令：點擊後直接假設成功以避免 race condition
       setIsConnected(true);
     } else {
-      alert("請在具備 Google AI Studio 環境的瀏覽器中開啟此功能。");
+      // 如果沒有橋接器，說明是標準 Vercel 環境，提示使用者金鑰已由系統代管
+      if (isConnected) {
+        alert("系統目前使用預設 API 金鑰運作中。");
+      } else {
+        alert("未偵測到 API 金鑰。請在 Vercel Settings 中設定 API_KEY 環境變數。");
+      }
     }
   };
-
-  const previousAsset = useMemo(() => {
-    if (!currentGroupId) return null;
-    return assets.find(a => a.groupId === currentGroupId && a.version === currentVersion - 1);
-  }, [assets, currentGroupId, currentVersion]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFile = e.target.files?.[0];
@@ -70,7 +80,7 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
   const handleAudit = async () => {
     if (!file) return;
     if (!isConnected) {
-      alert("請先點擊右上角「連結 Google AI」");
+      alert("尚未建立 AI 連線，請檢查 API 設定。");
       return;
     }
     
@@ -94,10 +104,10 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
       <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <span className={`px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${isConnected ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'}`}>
-              {isConnected ? '已連線' : '未連線'}
+            <span className={`px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${isConnected ? 'bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.4)]' : 'bg-slate-200 text-slate-500'}`}>
+              {isConnected ? '系統已就緒' : '未連線'}
             </span>
-            <span className="text-[11px] font-bold text-slate-400">/ 支援 Gemini 免費版 API</span>
+            <span className="text-[11px] font-bold text-slate-400">/ 支援 Gemini 2.5 & 3 Pro 模型</span>
           </div>
           <h1 className="text-4xl font-black brand-font tracking-tight">AI 創意實驗室</h1>
         </div>
@@ -114,13 +124,22 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
               </button>
             ))}
           </div>
-          <button 
-            onClick={handleConnect}
-            className={`px-6 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${isConnected ? 'bg-slate-900 text-white' : 'bg-indigo-600 text-white shadow-lg'}`}
-          >
-            <Icons.Shield />
-            {isConnected ? '切換 AI 帳戶' : '連結 Google AI'}
-          </button>
+          
+          {/* 只有在支援橋接器的環境下才顯示切換按鈕，否則顯示狀態標籤 */}
+          {hasBridge ? (
+            <button 
+              onClick={handleConnect}
+              className="px-6 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-2 bg-indigo-600 text-white shadow-lg hover:bg-indigo-700"
+            >
+              <Icons.Shield />
+              切換 AI 帳戶
+            </button>
+          ) : (
+            <div className="px-6 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest bg-slate-900 text-white flex items-center gap-2">
+              <Icons.Check />
+              Cloud API 已啟動
+            </div>
+          )}
         </div>
       </header>
 
@@ -220,7 +239,7 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
             <div className="h-full min-h-[500px] border-2 border-dashed border-slate-200 rounded-[3rem] flex flex-col items-center justify-center text-center p-12 bg-white/30">
               <div className="w-20 h-20 bg-white rounded-[1.5rem] flex items-center justify-center text-slate-100 mb-6 shadow-sm"><Icons.Compass /></div>
               <h3 className="text-2xl font-black text-slate-900 brand-font">等待分析指令</h3>
-              <p className="text-slate-400 text-sm font-bold mt-4 max-w-xs">請上傳圖片並連結 Google AI 以啟動審核功能。</p>
+              <p className="text-slate-400 text-sm font-bold mt-4 max-w-xs">請上傳圖片並點擊按鈕啟動審核功能。</p>
             </div>
           )}
         </main>
