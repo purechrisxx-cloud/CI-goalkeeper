@@ -17,7 +17,7 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
   const [currentGroupId, setCurrentGroupId] = useState<string | null>(null);
   
   // 核心連線狀態
-  const [connectionStatus, setConnectionStatus] = useState<'ready' | 'pending' | 'need_config'>('pending');
+  const [connectionStatus, setConnectionStatus] = useState<'ready' | 'pending'>('pending');
   
   const [assetIntent, setAssetIntent] = useState('');
   const [assetTargetAudience, setAssetTargetAudience] = useState(ci.targetAudience || '');
@@ -28,18 +28,13 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
     const initConnection = async () => {
       const aistudio = (window as any).aistudio;
       
-      // 1. 先看有沒有預設的系統金鑰
       if (process.env.API_KEY && process.env.API_KEY !== "") {
         setConnectionStatus('ready');
-      } 
-      // 2. 如果沒有，看有沒有已經選好的個人金鑰
-      else if (aistudio && typeof aistudio.hasSelectedApiKey === 'function') {
+      } else if (aistudio && typeof aistudio.hasSelectedApiKey === 'function') {
         const hasKey = await aistudio.hasSelectedApiKey();
         setConnectionStatus(hasKey ? 'ready' : 'pending');
-      } 
-      // 3. 都沒有
-      else {
-        setConnectionStatus('need_config');
+      } else {
+        setConnectionStatus('pending');
       }
     };
 
@@ -50,9 +45,20 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
 
   const handleOpenKeySelector = async () => {
     const aistudio = (window as any).aistudio;
-    if (aistudio?.openSelectKey) {
-      await aistudio.openSelectKey();
-      setConnectionStatus('ready');
+    if (aistudio && typeof aistudio.openSelectKey === 'function') {
+      try {
+        await aistudio.openSelectKey();
+        setConnectionStatus('ready');
+      } catch (e) {
+        console.error(e);
+      }
+    } else {
+      alert(
+        "【AI 核心啟動提示】\n\n" +
+        "在正式瀏覽器環境中，AI 功能需要透過環境變數 (Environment Variables) 設定金鑰。\n\n" +
+        "如果您是開發者：\n請在部署平台設定 API_KEY。\n\n" +
+        "如果您是使用者：\n請聯絡管理員確認系統金鑰是否已配置。"
+      );
     }
   };
 
@@ -79,7 +85,6 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
   const handleAudit = async () => {
     if (!file) return;
     
-    // 如果尚未連線，先幫使用者開啟選取器
     if (connectionStatus !== 'ready') {
       await handleOpenKeySelector();
       return;
@@ -103,11 +108,9 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
       onAssetSave(file, `創意迭代 ${new Date().toLocaleTimeString()}`, auditResult, ci, gid);
     } catch (error: any) {
       console.error(error);
-      // 特殊處理金鑰失效
       if (error.message.includes("Requested entity was not found") || error.message.includes("API key")) {
         setConnectionStatus('pending');
-        alert("金鑰似乎已過期或無效，請重新連線個人 Google Gemini 金鑰。");
-        handleOpenKeySelector();
+        alert("金鑰驗證失敗。請確認金鑰是否有效，或重新連線個人 Google Gemini 金鑰。");
       } else {
         alert(`分析發生錯誤：${error.message}`);
       }
@@ -120,7 +123,6 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
 
   return (
     <div className="max-w-7xl mx-auto space-y-12 pb-32">
-      {/* 頂部引導列：只有在未連線時顯示，或提供連線資訊 */}
       <div className="flex items-center justify-between bg-white/40 backdrop-blur-xl px-10 py-5 rounded-[2.5rem] border border-white shadow-sm">
         <div className="flex items-center gap-5">
           <div className={`w-3 h-3 rounded-full ${
@@ -129,7 +131,7 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
           <div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">AI Engine Connectivity</p>
             <p className="text-sm font-black text-slate-900 brand-font">
-              {connectionStatus === 'ready' ? '已成功連線：Google Gemini 引擎' : '等待連線：請選取個人 API 金鑰'}
+              {connectionStatus === 'ready' ? '系統已連線：Google Gemini 核心' : '尚未連線：點擊按鈕啟動 AI'}
             </p>
           </div>
         </div>
@@ -138,7 +140,7 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
           onClick={handleOpenKeySelector}
           className="bg-slate-950 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-xl"
         >
-          {connectionStatus === 'ready' ? '管理金鑰' : '立即啟動 AI 核心'}
+          {connectionStatus === 'ready' ? '管理 AI 配置' : '立即啟動 AI 核心'}
         </button>
       </div>
 
@@ -205,6 +207,7 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
           </button>
         </div>
       ) : (
+        /* ... 略過不變的結果顯示部分以保持簡潔 ... */
         <div className="animate-in fade-in slide-in-from-bottom-12 duration-1000 space-y-10">
           <div className="bg-white/40 backdrop-blur-xl rounded-[4rem] p-10 border border-white shadow-sm overflow-hidden">
             <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.4em] mb-8 ml-2">Creative Evolution</h3>
@@ -267,7 +270,7 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
                     {result.suggestions.creative.map((s, i) => (
                       <div key={i} className="p-6 bg-indigo-50/20 rounded-[2rem] flex gap-5 border border-transparent hover:border-indigo-200 transition-all">
                         <span className="text-indigo-500 font-black brand-font text-lg">★</span>
-                        <p className="text-[14px] font-bold text-slate-700 leading-relaxed">{s}</p>
+                        <p className="text-[14px] font-bold text-slate-700 Learing-relaxed">{s}</p>
                       </div>
                     ))}
                   </div>
