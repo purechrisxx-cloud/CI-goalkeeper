@@ -9,15 +9,11 @@ export const auditAsset = async (
   campaignContext: string,
   modelName: string = 'gemini-3-flash-preview'
 ): Promise<AuditResult> => {
-  // 每次呼叫時才獲取，以確保獲得最新的 Key
+  // 獲取 API Key (優先從環境變數取得)
   const apiKey = process.env.API_KEY;
   
-  if (!apiKey || apiKey === "undefined" || apiKey === "") {
-    throw new Error("請先點擊頁面右上角的「連結 Google AI」按鈕以授權服務。");
-  }
-
-  // 根據規範，每次請求前建立新實例
-  const ai = new GoogleGenAI({ apiKey });
+  // 不再這裡拋出 Error，交給 SDK 嘗試執行，或在下面 catch 處理
+  const ai = new GoogleGenAI({ apiKey: apiKey || '' });
   
   const systemInstruction = `
     你是一位「品牌創意教練與策略師」。你的目標是幫助團隊產出既符合品牌核心靈魂，又能達成商業目的的素材。
@@ -32,7 +28,7 @@ export const auditAsset = async (
   `;
 
   const prompt = `
-    【品牌核心】
+    【品牌核心設定】
     - 名稱：${ci.name}
     - 故事背景：${ci.brandStory}
     - 品牌識別：${ci.mission}
@@ -40,7 +36,7 @@ export const auditAsset = async (
     - 品牌人格：${ci.persona}
     - 主/副色：${ci.primaryColor} / ${ci.secondaryColor}
 
-    【此次審核情境】
+    【此次素材情境】
     - 目標受眾：${ci.targetAudience}
     - 素材目的：${intent || '品牌形象建立'}
     - 活動脈絡：${campaignContext}
@@ -98,14 +94,10 @@ export const auditAsset = async (
     if (!text) throw new Error("AI 回傳內容為空");
     return JSON.parse(text);
   } catch (error: any) {
-    console.error("Gemini API Error Detail:", error);
-    // 向外層拋出更具描述性的錯誤
-    if (error.message?.includes("403") || error.message?.includes("401")) {
-      throw new Error("API Key 權限不足或已過期，請確認是否為付費專案的 Key。");
+    console.error("Gemini API Error:", error);
+    if (error.message?.includes("API key not valid") || error.message?.includes("401") || error.message?.includes("403")) {
+      throw new Error("API Key 無效或尚未連結。請確保環境變數已設定，或點擊右上角重新連結。");
     }
-    if (error.message?.includes("404")) {
-      throw new Error("找不到指定的 AI 模型或實體。請重新選擇有效的 API Key。");
-    }
-    throw new Error(`AI 分析時發生錯誤：${error.message}`);
+    throw new Error(`AI 分析失敗：${error.message}`);
   }
 };

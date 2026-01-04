@@ -14,7 +14,7 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
   const [file, setFile] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AuditResult | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
+  const [isConnected, setIsConnected] = useState(true); // 預設為 true 以優化一般使用者體驗
   const [currentGroupId, setCurrentGroupId] = useState<string | null>(null);
   
   // 審核情境狀態
@@ -33,15 +33,14 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
   }, [assets, currentGroupId]);
 
   const checkConnection = async () => {
-    // 優先檢查 process.env.API_KEY
-    const hasEnvKey = !!process.env.API_KEY && process.env.API_KEY !== "undefined" && process.env.API_KEY !== "";
+    const hasEnvKey = !!process.env.API_KEY && process.env.API_KEY !== "" && process.env.API_KEY !== "undefined";
+    const bridge = (window as any).aistudio;
+    
     if (hasEnvKey) {
       setIsConnected(true);
       return;
     }
 
-    // 備選：檢查 AI Studio Bridge
-    const bridge = (window as any).aistudio;
     if (bridge?.hasSelectedApiKey) {
       try {
         const selected = await bridge.hasSelectedApiKey();
@@ -49,12 +48,16 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
       } catch {
         setIsConnected(false);
       }
+    } else {
+      // 若無環境變數也無橋接器，則視為未連結
+      setIsConnected(hasEnvKey);
     }
   };
 
   useEffect(() => {
     checkConnection();
-    const timer = setInterval(checkConnection, 5000);
+    // 稍微降低偵測頻率，避免影響效能
+    const timer = setInterval(checkConnection, 10000);
     return () => clearInterval(timer);
   }, []);
 
@@ -68,13 +71,7 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
         console.error(err); 
       }
     } else {
-      // 如果沒有 bridge 但有 ENV KEY，則直接視為已連結
-      if (!!process.env.API_KEY) {
-        setIsConnected(true);
-      } else {
-        alert("目前的環境未偵測到 API Key。系統將嘗試使用預設通道。");
-        setIsConnected(true); // 嘗試讓使用者繼續，若失敗 geminiService 會拋出錯誤
-      }
+      alert("請確認環境 API Key 設定是否正確。");
     }
   };
 
@@ -99,7 +96,7 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
         file, 
         { ...ci, targetAudience: assetTargetAudience }, 
         assetIntent, 
-        '團隊創意審核', 
+        '團隊創意審核流程', 
         'gemini-3-flash-preview'
       );
       setResult(auditResult);
@@ -111,14 +108,13 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
 
       onAssetSave(file, `創意迭代 ${new Date().toLocaleTimeString()}`, auditResult, ci, gid);
     } catch (error: any) {
-      // 處理 API Key 失效狀況
-      if (error.message.includes("Requested entity was not found") || error.message.includes("403")) {
+      if (error.message.includes("無效") || error.message.includes("尚未連結")) {
         const bridge = (window as any).aistudio;
         if (bridge?.openSelectKey) {
-          alert("API 連結已失效，請點擊右上角重新連結 API Key。");
+          alert("API 授權失效，請重新選擇 Key。");
           await bridge.openSelectKey();
         } else {
-          alert(`AI 服務異常：${error.message}`);
+          alert(error.message);
         }
       } else {
         alert(error.message);
@@ -151,7 +147,7 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
           ) : (
             <div className="flex items-center gap-3 bg-white/50 backdrop-blur-md px-5 py-3 rounded-2xl border border-white">
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-              <span className="text-emerald-700 font-black text-[10px] uppercase tracking-widest">AI Engine Active</span>
+              <span className="text-emerald-700 font-black text-[10px] uppercase tracking-widest">AI Engine Ready</span>
             </div>
           )}
         </div>
@@ -164,7 +160,6 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
       {!result ? (
         <div className="flex flex-col items-center space-y-10">
           <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-10">
-            {/* 上傳與預覽 */}
             <div onClick={() => !loading && fileInputRef.current?.click()} className={`group w-full aspect-square rounded-[3rem] border-4 border-dashed transition-all duration-700 relative overflow-hidden flex items-center justify-center ${file ? 'border-indigo-400 bg-white shadow-3xl' : 'border-slate-200 bg-white/40 hover:bg-white cursor-pointer'}`}>
               <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} disabled={loading} />
               {file ? (
@@ -180,7 +175,6 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
               )}
             </div>
 
-            {/* 情境背景設定 */}
             <div className="bg-white/60 backdrop-blur-xl rounded-[3rem] p-10 border border-white shadow-sm space-y-8">
               <div className="space-y-4">
                 <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest block ml-2">素材目的 (Asset Intent)</label>
@@ -204,8 +198,8 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
               </div>
 
               <div className="pt-4 border-t border-slate-50">
-                <p className="text-[11px] text-slate-400 leading-relaxed">
-                  <strong className="text-indigo-600">AI 教練提示：</strong> 設定具體的情境能讓建議更具「自由度」，AI 會判斷在該情境下，哪些 CI 規範可以被彈性調整。
+                <p className="text-[11px] text-slate-400 leading-relaxed font-medium">
+                  <strong className="text-indigo-600">AI 提示：</strong> 明確的目的與受眾設定，能幫助 AI 提供更具彈性且精準的「教練式建議」。
                 </p>
               </div>
             </div>
@@ -213,12 +207,11 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
 
           <button onClick={handleAudit} disabled={!file || loading} className={`px-16 py-5 rounded-full font-black tracking-[0.2em] transition-all flex items-center gap-4 ${!file || loading ? 'bg-slate-100 text-slate-300' : 'bg-slate-950 text-white hover:bg-indigo-600 hover:-translate-y-1 active:scale-95 shadow-2xl'}`}>
             {loading ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : <Icons.Zap />}
-            {loading ? 'AI 教練正在閱讀品牌靈魂...' : '執行深度品牌審核'}
+            {loading ? 'AI 教練正在審讀品牌核心...' : '執行深度品牌審核'}
           </button>
         </div>
       ) : (
         <div className="animate-in fade-in slide-in-from-bottom-12 duration-1000 space-y-10">
-          {/* 迭代歷程比對 */}
           <div className="bg-white/40 backdrop-blur-xl rounded-[4rem] p-10 border border-white shadow-sm overflow-hidden">
             <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.4em] mb-8 ml-2">Iteration Comparison</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
@@ -242,7 +235,7 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
               ))}
               {versionHistory.length < 4 && Array(4 - versionHistory.length).fill(0).map((_, i) => (
                 <div key={i} className="aspect-[4/5] rounded-[2.5rem] bg-slate-100/50 border-2 border-dashed border-slate-200 flex items-center justify-center">
-                  <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Wait for Iteration</span>
+                  <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Pending Iteration</span>
                 </div>
               ))}
             </div>
@@ -251,7 +244,7 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-10">
             <div className="xl:col-span-4 space-y-8">
               <div className="bg-slate-950 rounded-[3rem] p-12 text-white shadow-2xl relative overflow-hidden">
-                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em] mb-6">CI Compliance</p>
+                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em] mb-6">Compliance Score</p>
                 <div className="flex items-baseline gap-4 mb-10">
                   <h3 className="text-8xl font-black brand-font">{result.overallScore}</h3>
                   <span className="text-xl font-bold text-slate-500">/ 100</span>
@@ -268,7 +261,7 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
               </div>
               <div className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-xl">
                 <h4 className="font-black text-slate-950 text-lg mb-6 flex items-center gap-3">
-                  <div className="w-1.5 h-6 bg-indigo-600 rounded-full"></div> 品牌精神對標點評
+                  <div className="w-1.5 h-6 bg-indigo-600 rounded-full"></div> 品牌教練總結
                 </h4>
                 <p className="text-slate-600 leading-relaxed font-medium italic">"{result.creativeCritique}"</p>
               </div>
@@ -276,23 +269,23 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
 
             <div className="xl:col-span-8">
               <div className="bg-white rounded-[4rem] p-12 border border-slate-100 shadow-2xl h-full">
-                <h3 className="text-2xl font-black text-slate-950 mb-12 brand-font">策略審核與優化路徑</h3>
+                <h3 className="text-2xl font-black text-slate-950 mb-12 brand-font">策略審核報告</h3>
                 
                 <div className="mb-10 p-6 bg-slate-50 rounded-3xl border border-slate-100 flex gap-8 items-center">
                   <div className="flex-1">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">鎖定受眾</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">受眾對標</p>
                     <p className="text-sm font-bold text-slate-700">{assetTargetAudience || ci.targetAudience}</p>
                   </div>
                   <div className="w-px h-8 bg-slate-200"></div>
                   <div className="flex-[2]">
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">創意目的</p>
-                    <p className="text-sm font-bold text-slate-700 truncate">{assetIntent || '通用品牌建立'}</p>
+                    <p className="text-sm font-bold text-slate-700 truncate">{assetIntent || '通用品牌提升'}</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                   <div className="space-y-6">
-                    <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em]">規範符合度</h5>
+                    <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em]">CI 合規檢查</h5>
                     {result.suggestions.compliance.map((s, i) => (
                       <div key={i} className="p-6 bg-slate-50 rounded-[2rem] flex gap-5 border border-transparent hover:border-indigo-100 transition-all">
                         <span className="text-indigo-600 font-black brand-font text-lg">0{i+1}</span>
@@ -314,7 +307,7 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
                   <button onClick={() => { setResult(null); setFile(null); }} className="text-indigo-600 font-black text-[11px] uppercase tracking-widest flex items-center gap-3 hover:bg-indigo-50 px-6 py-3 rounded-2xl transition-all">
                     重新開始分析
                   </button>
-                  <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">FOOTER BrandGuard Laboratory</p>
+                  <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">BrandGuard Laboratory v4.6</p>
                 </div>
               </div>
             </div>
