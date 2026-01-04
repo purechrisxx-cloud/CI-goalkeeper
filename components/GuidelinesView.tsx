@@ -1,5 +1,5 @@
 
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { BrandCI } from '../types';
 import { Icons } from '../constants';
 
@@ -28,6 +28,8 @@ const GuidelinesView: React.FC<GuidelinesViewProps> = ({
 }) => {
   const activeProfile = profiles.find(p => p.id === activeProfileId) || profiles[0];
   const importInputRef = useRef<HTMLInputElement>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareText, setShareText] = useState('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -45,6 +47,26 @@ const GuidelinesView: React.FC<GuidelinesViewProps> = ({
     downloadAnchorNode.remove();
   };
 
+  const copyShareCode = () => {
+    const { history, ...exportData } = activeProfile;
+    const code = btoa(encodeURIComponent(JSON.stringify(exportData)));
+    navigator.clipboard.writeText(code);
+    alert('分享碼已複製到剪貼簿！同仁只需在不同電腦點擊「匯入」並貼上此代碼即可同步。');
+  };
+
+  const handleQuickImport = () => {
+    const code = prompt('請貼上同仁分享的規範代碼 (Share Code)：');
+    if (code) {
+      try {
+        const decoded = JSON.parse(decodeURIComponent(atob(code)));
+        importProfile(decoded);
+        alert('規範同步成功！');
+      } catch (err) {
+        alert('代碼無效，請確認是否完整複製。');
+      }
+    }
+  };
+
   const inputStyle = "w-full px-7 py-5 rounded-[2rem] border-2 border-slate-100 bg-white/50 hover:border-indigo-200 focus:bg-white focus:border-indigo-600 focus:ring-[12px] focus:ring-indigo-500/5 focus:shadow-2xl outline-none transition-all duration-500 text-slate-950 font-semibold placeholder:text-slate-300";
 
   return (
@@ -56,7 +78,7 @@ const GuidelinesView: React.FC<GuidelinesViewProps> = ({
           </h1>
           <p className="text-slate-600 mt-5 text-xl font-medium max-w-lg leading-relaxed">定義品牌人格與受眾，為 AI 提供最精確的審核基準。</p>
         </div>
-        <div className="flex gap-4">
+        <div className="flex flex-wrap gap-4">
           <input type="file" ref={importInputRef} onChange={(e) => {
              const file = e.target.files?.[0];
              if (file) {
@@ -69,11 +91,17 @@ const GuidelinesView: React.FC<GuidelinesViewProps> = ({
                reader.readAsText(file);
              }
           }} accept=".json" className="hidden" />
-          <button onClick={() => importInputRef.current?.click()} className="flex items-center gap-3 bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 px-8 py-4 rounded-[1.5rem] font-black text-[13px] uppercase tracking-widest transition-all active:scale-95 shrink-0 premium-shadow">
+          
+          <button onClick={handleQuickImport} className="flex items-center gap-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-6 py-4 rounded-[1.5rem] font-black text-[12px] uppercase tracking-widest transition-all active:scale-95">
             <Icons.Import />
-            <span>匯入</span>
+            <span>同步分享碼</span>
           </button>
-          <button onClick={addProfile} className="flex items-center gap-3 bg-slate-950 hover:bg-black text-white px-8 py-4 rounded-[1.5rem] font-black text-[13px] uppercase tracking-widest shadow-2xl transition-all active:scale-95 shrink-0">
+
+          <button onClick={() => importInputRef.current?.click()} className="flex items-center gap-3 bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 px-6 py-4 rounded-[1.5rem] font-black text-[12px] uppercase tracking-widest transition-all active:scale-95 premium-shadow">
+            <span>檔案匯入</span>
+          </button>
+          
+          <button onClick={addProfile} className="flex items-center gap-3 bg-slate-950 hover:bg-black text-white px-8 py-4 rounded-[1.5rem] font-black text-[13px] uppercase tracking-widest shadow-2xl transition-all active:scale-95">
             <Icons.Plus />
             <span>建立檔案</span>
           </button>
@@ -105,12 +133,16 @@ const GuidelinesView: React.FC<GuidelinesViewProps> = ({
       <div className="premium-card rounded-[4rem] p-16 shadow-sm space-y-12">
         <div className="flex items-center justify-between border-b pb-10 border-slate-50">
            <h2 className="text-3xl font-black text-slate-950 brand-font tracking-tight">{activeProfile.name}</h2>
-           <div className="flex gap-6">
-             <button onClick={() => { saveSnapshot(activeProfile.id); alert('已儲存快照'); }} className="text-emerald-600 hover:bg-emerald-50 px-6 py-3 rounded-2xl text-[13px] font-black uppercase tracking-widest flex items-center gap-3 transition-all">
+           <div className="flex flex-wrap gap-4">
+             <button onClick={copyShareCode} className="text-indigo-600 hover:bg-indigo-50 px-6 py-3 rounded-2xl text-[12px] font-black uppercase tracking-widest flex items-center gap-3 transition-all">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                複製分享碼
+             </button>
+             <button onClick={() => { saveSnapshot(activeProfile.id); alert('已儲存快照'); }} className="text-emerald-600 hover:bg-emerald-50 px-6 py-3 rounded-2xl text-[12px] font-black uppercase tracking-widest flex items-center gap-3 transition-all">
                 <Icons.Check />
                 儲存快照
              </button>
-             <button onClick={handleExport} className="text-indigo-600 hover:bg-indigo-50 px-6 py-3 rounded-2xl text-[13px] font-black uppercase tracking-widest flex items-center gap-3 transition-all">
+             <button onClick={handleExport} className="text-slate-400 hover:bg-slate-50 px-6 py-3 rounded-2xl text-[12px] font-black uppercase tracking-widest flex items-center gap-3 transition-all">
                <Icons.Download />
                匯出 JSON
              </button>
