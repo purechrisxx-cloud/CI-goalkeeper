@@ -1,0 +1,8 @@
+
+{
+  "name": "品牌衛士 AI (BrandGuard)",
+  "description": "一個智慧 CI 合規性檢查工具，幫助創意團隊在保有自由度的同時，維持品牌一致性。",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
