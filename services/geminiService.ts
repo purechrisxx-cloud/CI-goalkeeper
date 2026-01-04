@@ -9,18 +9,19 @@ export const auditAsset = async (
   campaignContext: string,
   modelName: string = 'gemini-3-flash-preview'
 ): Promise<AuditResult> => {
-  // 每次調用時重新獲取最新的 API_KEY，確保連結後立即生效
+  // 關鍵：必須在函數內部獲取 API_KEY，因為連結器 (openSelectKey) 會動態更新它
   const apiKey = process.env.API_KEY;
   
-  if (!apiKey) {
-    throw new Error("尚未連結 Google AI。請點擊頁面右上角的「連結 Google AI」按鈕。");
+  if (!apiKey || apiKey === "undefined") {
+    throw new Error("請先點擊頁面右上角的「連結 Google AI」按鈕以授權服務。");
   }
 
+  // 根據 Google 規範，每次調用前創建新實例以確保金鑰最新
   const ai = new GoogleGenAI({ apiKey });
   
   const systemInstruction = `
-    你是一位「品牌視覺與社群趨勢專家」。你的任務是審核廣告素材。
-    你的分析必須嚴謹且具備洞察力，平衡品牌 CI 規範與社群吸睛度。
+    你是一位「品牌視覺與社群趨勢專家」。
+    你的任務是審核廣告素材。請平衡品牌一致性與社群吸引力。
     請輸出的 JSON 物件內容完全使用繁體中文。
   `;
 
@@ -30,13 +31,13 @@ export const auditAsset = async (
     - 核心受眾：${ci.targetAudience}
     - 色彩：主色(${ci.primaryColor}), 輔助色(${ci.secondaryColor})
     - 品牌人格：${ci.persona}
-    - 規則：${ci.additionalRules}
+    - 額外規則：${ci.additionalRules}
 
-    【當前創作情境】
+    【創作情境】
     - 活動背景：${campaignContext || '一般品牌推廣'}
     - 創作目的：${intent || '未提供'}
 
-    請審核附件圖片。請針對「品牌合規度」與「社群轉換潛力」進行分析。
+    請分析附件圖片的「品牌合規性」與「行銷潛力」。
   `;
 
   try {
@@ -56,8 +57,6 @@ export const auditAsset = async (
           properties: {
             overallScore: { type: Type.NUMBER },
             healthStatus: { type: Type.STRING },
-            audienceResonance: { type: Type.NUMBER },
-            trendRelevance: { type: Type.NUMBER },
             metrics: {
               type: Type.OBJECT,
               properties: {
@@ -83,20 +82,22 @@ export const auditAsset = async (
       }
     });
 
-    const resultText = response.text;
-    if (!resultText) throw new Error("AI 無法理解這張圖片，請嘗試更換圖片或重新上傳。");
-    return JSON.parse(resultText);
+    const text = response.text;
+    if (!text) throw new Error("AI 回傳內容為空");
+    return JSON.parse(text);
   } catch (error: any) {
-    console.error("Gemini Error:", error);
+    console.error("Gemini Error Details:", error);
     
-    // 針對免費版常見錯誤的處理
-    if (error.message?.includes("429") || error.message?.toLowerCase().includes("exhausted")) {
-      throw new Error("【免費版配額已滿】您目前使用的 Gemini 免費版金鑰已達每分鐘限制，請稍候 30-60 秒再試，或更換為付費金鑰。");
-    }
-    if (error.message?.includes("entity was not found") || error.message?.includes("API_KEY_INVALID")) {
-      throw new Error("金鑰無效。請重新點擊「連結 Google AI」選擇一個正確的 API 專案。");
+    // 專門處理 429 (免費版限流)
+    if (error.status === 429 || error.message?.includes("429") || error.message?.includes("quota")) {
+      throw new Error("【免費版配額已滿】請等候 30 秒再試，或更換金鑰。");
     }
     
-    throw new Error(`分析失敗：${error.message || '未知錯誤'}`);
+    // 專門處理金鑰失效
+    if (error.message?.includes("not found") || error.message?.includes("API_KEY_INVALID")) {
+      throw new Error("金鑰已失效，請點擊「切換 AI 帳戶」重新連結。");
+    }
+
+    throw new Error(`分析出錯：${error.message}`);
   }
 };
