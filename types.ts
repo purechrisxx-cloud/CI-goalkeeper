@@ -35,6 +35,8 @@ export interface AuditMetric {
 
 export interface AuditResult {
   overallScore: number;
+  creativeEnergy: number; // 創意能量評分 (0-100)
+  visualImpact: number;   // 視覺衝擊力 (0-100)
   healthStatus: 'Excellent' | 'On-Brand' | 'Divergent' | 'Off-Brand';
   metrics: {
     colors: AuditMetric;
@@ -43,9 +45,7 @@ export interface AuditResult {
     composition: AuditMetric;
   };
   marketingCritique: string;
-  audienceResonance: number;
-  trendRelevance: number;
-  creativeCritique: string;
+  creativeCritique: string; // 針對創意的肯定與建議
   suggestions: {
     compliance: string[];
     creative: string[];

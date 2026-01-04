@@ -9,35 +9,39 @@ export const auditAsset = async (
   campaignContext: string,
   modelName: string = 'gemini-3-flash-preview'
 ): Promise<AuditResult> => {
-  // 關鍵：必須在函數內部獲取 API_KEY，因為連結器 (openSelectKey) 會動態更新它
   const apiKey = process.env.API_KEY;
   
   if (!apiKey || apiKey === "undefined") {
     throw new Error("請先點擊頁面右上角的「連結 Google AI」按鈕以授權服務。");
   }
 
-  // 根據 Google 規範，每次調用前創建新實例以確保金鑰最新
   const ai = new GoogleGenAI({ apiKey });
   
   const systemInstruction = `
-    你是一位「品牌視覺與社群趨勢專家」。
-    你的任務是審核廣告素材。請平衡品牌一致性與社群吸引力。
+    你是一位「品牌創意教練」。你的目標不是單純指出錯誤，而是幫助創意人員在「品牌 CI 框架」內發揮最大的「創意自由」。
+    
+    你的審核邏輯：
+    1. 品牌守護：確保顏色、標誌與核心調性不偏離。
+    2. 創意鼓勵：如果素材有驚艷的視覺效果或大膽的構圖，即使略微偏離傳統規範，只要「靈魂」契合品牌，也應給予正面肯定。
+    3. 實戰建議：提供具體的調整方法，而不是模糊的批評。
+    
     請輸出的 JSON 物件內容完全使用繁體中文。
   `;
 
   const prompt = `
-    【品牌核心規範】
+    【品牌規範】
     - 名稱：${ci.name}
-    - 核心受眾：${ci.targetAudience}
-    - 色彩：主色(${ci.primaryColor}), 輔助色(${ci.secondaryColor})
+    - 受眾：${ci.targetAudience}
+    - 關鍵調性：${ci.tone}
     - 品牌人格：${ci.persona}
-    - 額外規則：${ci.additionalRules}
+    - CI 細節：${ci.additionalRules}
 
     【創作情境】
     - 活動背景：${campaignContext || '一般品牌推廣'}
     - 創作目的：${intent || '未提供'}
 
-    請分析附件圖片的「品牌合規性」與「行銷潛力」。
+    請以「創意教練」的身份分析附件圖片。
+    請特別給予「創意能量 (creativeEnergy)」評分，衡量視覺的驚艷度。
   `;
 
   try {
@@ -56,6 +60,8 @@ export const auditAsset = async (
           type: Type.OBJECT,
           properties: {
             overallScore: { type: Type.NUMBER },
+            creativeEnergy: { type: Type.NUMBER },
+            visualImpact: { type: Type.NUMBER },
             healthStatus: { type: Type.STRING },
             metrics: {
               type: Type.OBJECT,
@@ -68,6 +74,7 @@ export const auditAsset = async (
               required: ["colors", "typography", "logo", "composition"]
             },
             marketingCritique: { type: Type.STRING },
+            creativeCritique: { type: Type.STRING },
             suggestions: {
               type: Type.OBJECT,
               properties: {
@@ -77,7 +84,7 @@ export const auditAsset = async (
               required: ["compliance", "creative"]
             }
           },
-          required: ["overallScore", "healthStatus", "metrics", "suggestions"]
+          required: ["overallScore", "creativeEnergy", "visualImpact", "healthStatus", "metrics", "suggestions", "creativeCritique"]
         }
       }
     });
@@ -86,18 +93,7 @@ export const auditAsset = async (
     if (!text) throw new Error("AI 回傳內容為空");
     return JSON.parse(text);
   } catch (error: any) {
-    console.error("Gemini Error Details:", error);
-    
-    // 專門處理 429 (免費版限流)
-    if (error.status === 429 || error.message?.includes("429") || error.message?.includes("quota")) {
-      throw new Error("【免費版配額已滿】請等候 30 秒再試，或更換金鑰。");
-    }
-    
-    // 專門處理金鑰失效
-    if (error.message?.includes("not found") || error.message?.includes("API_KEY_INVALID")) {
-      throw new Error("金鑰已失效，請點擊「切換 AI 帳戶」重新連結。");
-    }
-
+    console.error("Gemini Error:", error);
     throw new Error(`分析出錯：${error.message}`);
   }
 };
