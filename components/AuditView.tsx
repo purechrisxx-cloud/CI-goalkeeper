@@ -18,7 +18,6 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
   
   // 核心連線狀態
   const [connectionStatus, setConnectionStatus] = useState<'ready' | 'pending' | 'need_config'>('pending');
-  const [isAiStudioEnv, setIsAiStudioEnv] = useState(false);
   
   const [assetIntent, setAssetIntent] = useState('');
   const [assetTargetAudience, setAssetTargetAudience] = useState(ci.targetAudience || '');
@@ -29,36 +28,31 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
     const initConnection = async () => {
       const aistudio = (window as any).aistudio;
       
-      // 判斷是否在 AI Studio 環境
-      if (aistudio && typeof aistudio.hasSelectedApiKey === 'function') {
-        setIsAiStudioEnv(true);
+      // 1. 先看有沒有預設的系統金鑰
+      if (process.env.API_KEY && process.env.API_KEY !== "") {
+        setConnectionStatus('ready');
+      } 
+      // 2. 如果沒有，看有沒有已經選好的個人金鑰
+      else if (aistudio && typeof aistudio.hasSelectedApiKey === 'function') {
         const hasKey = await aistudio.hasSelectedApiKey();
         setConnectionStatus(hasKey ? 'ready' : 'pending');
       } 
-      // 一般瀏覽器環境：檢查有沒有注入的 API_KEY
-      else if (process.env.API_KEY) {
-        setConnectionStatus('ready');
-        setIsAiStudioEnv(false);
-      } 
-      // 兩者皆無
+      // 3. 都沒有
       else {
         setConnectionStatus('need_config');
       }
     };
 
     initConnection();
-    const interval = setInterval(initConnection, 5000);
+    const interval = setInterval(initConnection, 4000);
     return () => clearInterval(interval);
   }, []);
 
-  const handleConnectAi = async () => {
+  const handleOpenKeySelector = async () => {
     const aistudio = (window as any).aistudio;
-    if (isAiStudioEnv && aistudio?.openSelectKey) {
+    if (aistudio?.openSelectKey) {
       await aistudio.openSelectKey();
       setConnectionStatus('ready');
-    } else {
-      // 在一般瀏覽器環境，引導開發者到託管平台設定
-      alert("管理員提示：請確保您的網站託管環境（如 Vercel）已設定 API_KEY 環境變數。");
     }
   };
 
@@ -85,9 +79,9 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
   const handleAudit = async () => {
     if (!file) return;
     
-    // 如果是待連線狀態，觸發選擇器
-    if (connectionStatus === 'pending') {
-      await handleConnectAi();
+    // 如果尚未連線，先幫使用者開啟選取器
+    if (connectionStatus !== 'ready') {
+      await handleOpenKeySelector();
       return;
     }
 
@@ -109,9 +103,11 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
       onAssetSave(file, `創意迭代 ${new Date().toLocaleTimeString()}`, auditResult, ci, gid);
     } catch (error: any) {
       console.error(error);
-      if (error.message.includes("API key")) {
+      // 特殊處理金鑰失效
+      if (error.message.includes("Requested entity was not found") || error.message.includes("API key")) {
         setConnectionStatus('pending');
-        alert("AI 授權驗證失敗，請檢查金鑰配置。");
+        alert("金鑰似乎已過期或無效，請重新連線個人 Google Gemini 金鑰。");
+        handleOpenKeySelector();
       } else {
         alert(`分析發生錯誤：${error.message}`);
       }
@@ -124,35 +120,26 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
 
   return (
     <div className="max-w-7xl mx-auto space-y-12 pb-32">
-      {/* 頂部連線狀態列 */}
+      {/* 頂部引導列：只有在未連線時顯示，或提供連線資訊 */}
       <div className="flex items-center justify-between bg-white/40 backdrop-blur-xl px-10 py-5 rounded-[2.5rem] border border-white shadow-sm">
         <div className="flex items-center gap-5">
           <div className={`w-3 h-3 rounded-full ${
-            connectionStatus === 'ready' ? 'bg-emerald-500 animate-pulse' : 
-            connectionStatus === 'pending' ? 'bg-amber-500' : 'bg-rose-500'
+            connectionStatus === 'ready' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'
           }`}></div>
           <div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">AI Engine Connectivity</p>
             <p className="text-sm font-black text-slate-900 brand-font">
-              {connectionStatus === 'ready' ? '系統已連線：團隊共享引擎' : 
-               connectionStatus === 'pending' ? '等待授權：請點擊右側按鈕' : '尚未配置：請聯繫管理員'}
+              {connectionStatus === 'ready' ? '已成功連線：Google Gemini 引擎' : '等待連線：請選取個人 API 金鑰'}
             </p>
           </div>
         </div>
         
-        <div className="flex items-center gap-8">
-          <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="text-[10px] font-black text-slate-400 hover:text-indigo-600 uppercase tracking-widest transition-colors">
-            Pricing Info
-          </a>
-          {isAiStudioEnv && (
-            <button 
-              onClick={handleConnectAi} 
-              className="bg-slate-950 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-xl"
-            >
-              {connectionStatus === 'ready' ? '切換個人金鑰' : '立即啟動 AI'}
-            </button>
-          )}
-        </div>
+        <button 
+          onClick={handleOpenKeySelector}
+          className="bg-slate-950 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-xl"
+        >
+          {connectionStatus === 'ready' ? '管理金鑰' : '立即啟動 AI 核心'}
+        </button>
       </div>
 
       <header className="relative flex flex-col items-center pt-8 pb-4">
@@ -206,22 +193,19 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
 
           <button 
             onClick={handleAudit} 
-            disabled={!file || loading || connectionStatus === 'need_config'} 
+            disabled={!file || loading} 
             className={`px-16 py-5 rounded-full font-black tracking-[0.2em] transition-all flex items-center gap-4 ${
-              !file || loading || connectionStatus === 'need_config' 
+              !file || loading 
                 ? 'bg-slate-100 text-slate-300' 
                 : 'bg-slate-950 text-white hover:bg-indigo-600 hover:-translate-y-1 active:scale-95 shadow-2xl'
             }`}
           >
             {loading ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : <Icons.Zap />}
-            {loading ? 'AI 教練正在審閱...' : 
-             connectionStatus === 'ready' ? '啟動品牌深度分析' : 
-             connectionStatus === 'pending' ? '點擊啟動 AI 授權' : '等待管理員配置'}
+            {loading ? 'AI 教練正在審閱...' : connectionStatus === 'ready' ? '啟動品牌深度分析' : '啟動 AI 核心後繼續'}
           </button>
         </div>
       ) : (
         <div className="animate-in fade-in slide-in-from-bottom-12 duration-1000 space-y-10">
-          {/* 結果顯示部分保持原有的高品質設計 */}
           <div className="bg-white/40 backdrop-blur-xl rounded-[4rem] p-10 border border-white shadow-sm overflow-hidden">
             <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.4em] mb-8 ml-2">Creative Evolution</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8">

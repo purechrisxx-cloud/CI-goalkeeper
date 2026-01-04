@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { User } from '../types';
 
 interface SidebarProps {
@@ -11,6 +11,31 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, activeProfileName, user, onLogout }) => {
+  const [aiReady, setAiReady] = useState(false);
+
+  useEffect(() => {
+    const checkKey = async () => {
+      const aistudio = (window as any).aistudio;
+      if (process.env.API_KEY && process.env.API_KEY !== "") {
+        setAiReady(true);
+      } else if (aistudio?.hasSelectedApiKey) {
+        const hasKey = await aistudio.hasSelectedApiKey();
+        setAiReady(hasKey);
+      }
+    };
+    checkKey();
+    const timer = setInterval(checkKey, 3000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const handleConnectKey = async () => {
+    const aistudio = (window as any).aistudio;
+    if (aistudio?.openSelectKey) {
+      await aistudio.openSelectKey();
+      setAiReady(true); // 根據規範，觸發後假設成功
+    }
+  };
+
   const tabs = [
     { id: 'audit', label: 'AI 審核員', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> },
     { id: 'guidelines', label: 'CI 規範', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg> },
@@ -45,10 +70,31 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, activeProfil
       </nav>
 
       <div className="p-8 space-y-6">
-        <div className="bg-white/5 rounded-[2.5rem] p-6 border border-white/5">
-          <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500 mb-4">Workspace</p>
+        {/* AI Key Management Section */}
+        <div className="bg-white/5 rounded-[2rem] p-6 border border-white/5 space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-[9px] font-black uppercase tracking-[0.25em] text-slate-500">AI Core Status</p>
+            <div className={`w-2 h-2 rounded-full ${aiReady ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-slate-600'}`}></div>
+          </div>
+          
+          <button 
+            onClick={handleConnectKey}
+            className={`w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+              aiReady ? 'bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20' : 'bg-white text-slate-950 hover:scale-105'
+            }`}
+          >
+            {aiReady ? '切換個人金鑰' : '啟動個人 AI 金鑰'}
+          </button>
+          
+          <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="block text-[9px] text-center text-slate-600 hover:text-indigo-400 transition-colors">
+            查看帳單說明與申請
+          </a>
+        </div>
+
+        <div className="bg-white/5 rounded-[2rem] p-6 border border-white/5">
+          <p className="text-[9px] font-black uppercase tracking-[0.25em] text-slate-500 mb-4">Workspace</p>
           <div className="flex items-center gap-3">
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
+            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
             <p className="text-[13px] font-bold text-slate-200 truncate">{activeProfileName}</p>
           </div>
         </div>
