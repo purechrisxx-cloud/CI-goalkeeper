@@ -9,11 +9,12 @@ export const auditAsset = async (
   campaignContext: string = '團隊內部創意審核',
   modelName: string = 'gemini-3-flash-preview'
 ): Promise<AuditResult> => {
-  // 每次執行都從環境中抓取最新的 Key (可能是使用者剛剛選取的)
+  // 關鍵：每次呼叫都重新抓取 API_KEY
+  // process.env.API_KEY 會在 aistudio.openSelectKey() 成功後自動更新注入
   const apiKey = process.env.API_KEY;
   
   if (!apiKey) {
-    throw new Error("API Key configuration missing. Please connect your Gemini API key via the setup button.");
+    throw new Error("尚未配置或選取 API 金鑰。請點擊畫面中的『啟動 AI 核心』進行連線。");
   }
 
   const ai = new GoogleGenAI({ apiKey });
@@ -82,7 +83,7 @@ export const auditAsset = async (
     });
 
     const result = response.text;
-    if (!result) throw new Error("AI response was empty.");
+    if (!result) throw new Error("AI 回應為空，請稍後再試。");
     return JSON.parse(result);
   } catch (error: any) {
     console.error("Gemini API Error:", error);

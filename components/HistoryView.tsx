@@ -154,13 +154,15 @@ const HistoryView: React.FC<HistoryViewProps> = ({ assets, onDeleteAsset, onClea
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4">CI Index</p>
                       <p className="text-6xl font-black text-slate-950 brand-font">{activeAsset.auditResult?.overallScore}</p>
                     </div>
+                    {/* Updated to use creativeEnergy instead of non-existent audienceResonance */}
                     <div className="bg-indigo-50/30 p-10 rounded-[3rem] text-center border border-indigo-100">
-                      <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em] mb-4">Market</p>
-                      <p className="text-6xl font-black text-indigo-600 brand-font">{activeAsset.auditResult?.audienceResonance}</p>
+                      <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em] mb-4">Energy</p>
+                      <p className="text-6xl font-black text-indigo-600 brand-font">{activeAsset.auditResult?.creativeEnergy}</p>
                     </div>
+                    {/* Updated to use visualImpact instead of non-existent trendRelevance */}
                     <div className="bg-slate-950 p-10 rounded-[3rem] text-center shadow-xl">
-                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-4">Trend</p>
-                      <p className="text-6xl font-black text-white brand-font">{activeAsset.auditResult?.trendRelevance}</p>
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-4">Impact</p>
+                      <p className="text-6xl font-black text-white brand-font">{activeAsset.auditResult?.visualImpact}</p>
                     </div>
                   </div>
 

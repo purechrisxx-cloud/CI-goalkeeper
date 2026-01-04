@@ -15,9 +15,7 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AuditResult | null>(null);
   const [currentGroupId, setCurrentGroupId] = useState<string | null>(null);
-  
-  // 核心連線狀態
-  const [connectionStatus, setConnectionStatus] = useState<'ready' | 'pending'>('pending');
+  const [hasKey, setHasKey] = useState(false);
   
   const [assetIntent, setAssetIntent] = useState('');
   const [assetTargetAudience, setAssetTargetAudience] = useState(ci.targetAudience || '');
@@ -25,40 +23,29 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const initConnection = async () => {
+    const checkAuth = async () => {
       const aistudio = (window as any).aistudio;
-      
       if (process.env.API_KEY && process.env.API_KEY !== "") {
-        setConnectionStatus('ready');
+        setHasKey(true);
       } else if (aistudio && typeof aistudio.hasSelectedApiKey === 'function') {
-        const hasKey = await aistudio.hasSelectedApiKey();
-        setConnectionStatus(hasKey ? 'ready' : 'pending');
+        const val = await aistudio.hasSelectedApiKey();
+        setHasKey(val);
       } else {
-        setConnectionStatus('pending');
+        setHasKey(false);
       }
     };
-
-    initConnection();
-    const interval = setInterval(initConnection, 4000);
-    return () => clearInterval(interval);
+    checkAuth();
+    const timer = setInterval(checkAuth, 4000);
+    return () => clearInterval(timer);
   }, []);
 
   const handleOpenKeySelector = async () => {
     const aistudio = (window as any).aistudio;
     if (aistudio && typeof aistudio.openSelectKey === 'function') {
-      try {
-        await aistudio.openSelectKey();
-        setConnectionStatus('ready');
-      } catch (e) {
-        console.error(e);
-      }
+      await aistudio.openSelectKey();
+      setHasKey(true);
     } else {
-      alert(
-        "【AI 核心啟動提示】\n\n" +
-        "在正式瀏覽器環境中，AI 功能需要透過環境變數 (Environment Variables) 設定金鑰。\n\n" +
-        "如果您是開發者：\n請在部署平台設定 API_KEY。\n\n" +
-        "如果您是使用者：\n請聯絡管理員確認系統金鑰是否已配置。"
-      );
+      alert("啟動失敗：目前瀏覽器環境未提供金鑰連線介面。請在專屬預覽連結中開啟，或請技術管理員配置環境變數 API_KEY。");
     }
   };
 
@@ -85,7 +72,7 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
   const handleAudit = async () => {
     if (!file) return;
     
-    if (connectionStatus !== 'ready') {
+    if (!hasKey) {
       await handleOpenKeySelector();
       return;
     }
@@ -109,8 +96,9 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
     } catch (error: any) {
       console.error(error);
       if (error.message.includes("Requested entity was not found") || error.message.includes("API key")) {
-        setConnectionStatus('pending');
-        alert("金鑰驗證失敗。請確認金鑰是否有效，或重新連線個人 Google Gemini 金鑰。");
+        setHasKey(false);
+        alert("連線失效或金鑰已過期，請點擊重新啟動 AI 核心。");
+        handleOpenKeySelector();
       } else {
         alert(`分析發生錯誤：${error.message}`);
       }
@@ -123,32 +111,29 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
 
   return (
     <div className="max-w-7xl mx-auto space-y-12 pb-32">
+      {/* Top Banner for Status */}
       <div className="flex items-center justify-between bg-white/40 backdrop-blur-xl px-10 py-5 rounded-[2.5rem] border border-white shadow-sm">
         <div className="flex items-center gap-5">
-          <div className={`w-3 h-3 rounded-full ${
-            connectionStatus === 'ready' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'
-          }`}></div>
+          <div className={`w-3 h-3 rounded-full ${hasKey ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`}></div>
           <div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">AI Engine Connectivity</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">AI Analysis Core</p>
             <p className="text-sm font-black text-slate-900 brand-font">
-              {connectionStatus === 'ready' ? '系統已連線：Google Gemini 核心' : '尚未連線：點擊按鈕啟動 AI'}
+              {hasKey ? 'Gemini 引擎已就緒' : '待連線：需啟動核心以開始審核'}
             </p>
           </div>
         </div>
-        
-        <button 
-          onClick={handleOpenKeySelector}
-          className="bg-slate-950 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-xl"
-        >
-          {connectionStatus === 'ready' ? '管理 AI 配置' : '立即啟動 AI 核心'}
-        </button>
+        {!hasKey && (
+          <button onClick={handleOpenKeySelector} className="bg-slate-950 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-xl">
+            立即啟動核心
+          </button>
+        )}
       </div>
 
-      <header className="relative flex flex-col items-center pt-8 pb-4">
+      <header className="relative flex flex-col items-center pt-8 pb-4 text-center">
         <h1 className="text-5xl font-black brand-font tracking-tighter mb-4">
           <span className="gradient-text">Creative Hub</span>
         </h1>
-        <p className="text-slate-500 font-medium text-center">讓團隊在瀏覽器中直接審核素材，即時優化 CI 合規性。</p>
+        <p className="text-slate-500 font-medium">讓團隊在靈感爆發時，確保品牌核心價值不失焦。</p>
       </header>
 
       {!result ? (
@@ -165,6 +150,7 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
                 <div className="flex flex-col items-center justify-center h-full">
                   <div className="w-16 h-16 bg-indigo-50 text-indigo-500 rounded-2xl flex items-center justify-center mb-6"><Icons.Upload /></div>
                   <p className="text-base font-black text-slate-900">點擊上傳創意素材</p>
+                  <p className="text-xs text-slate-400 mt-2 font-bold uppercase tracking-widest">Supports JPG, PNG</p>
                 </div>
               )}
             </div>
@@ -203,11 +189,10 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
             }`}
           >
             {loading ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : <Icons.Zap />}
-            {loading ? 'AI 教練正在審閱...' : connectionStatus === 'ready' ? '啟動品牌深度分析' : '啟動 AI 核心後繼續'}
+            {loading ? 'AI 教練正在審閱...' : '啟動品牌深度分析'}
           </button>
         </div>
       ) : (
-        /* ... 略過不變的結果顯示部分以保持簡潔 ... */
         <div className="animate-in fade-in slide-in-from-bottom-12 duration-1000 space-y-10">
           <div className="bg-white/40 backdrop-blur-xl rounded-[4rem] p-10 border border-white shadow-sm overflow-hidden">
             <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.4em] mb-8 ml-2">Creative Evolution</h3>
@@ -215,7 +200,7 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
               {versionHistory.map((v, i) => (
                 <div key={v.id} className={`group relative rounded-[2.5rem] overflow-hidden border-2 transition-all ${i === 0 ? 'border-indigo-600 shadow-2xl scale-105 z-10' : 'border-white opacity-60 hover:opacity-100'}`}>
                   <div className="aspect-[4/5] bg-slate-100">
-                    <img src={v.url} className="w-full h-full object-cover" />
+                    <img src={v.url} className="w-full h-full object-cover" alt="Iteration" />
                   </div>
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent flex flex-col justify-end p-6">
                     <p className="text-[10px] font-black text-white/60 uppercase">Version {v.version}</p>
@@ -236,7 +221,7 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
                 </div>
                 <div>
                   <div className="flex justify-between text-[10px] font-black uppercase tracking-widest mb-3">
-                    <span>Creative Potential</span>
+                    <span>Creative Energy</span>
                     <span className="text-indigo-400">{result.creativeEnergy}%</span>
                   </div>
                   <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
@@ -270,7 +255,7 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
                     {result.suggestions.creative.map((s, i) => (
                       <div key={i} className="p-6 bg-indigo-50/20 rounded-[2rem] flex gap-5 border border-transparent hover:border-indigo-200 transition-all">
                         <span className="text-indigo-500 font-black brand-font text-lg">★</span>
-                        <p className="text-[14px] font-bold text-slate-700 Learing-relaxed">{s}</p>
+                        <p className="text-[14px] font-bold text-slate-700 leading-relaxed">{s}</p>
                       </div>
                     ))}
                   </div>
