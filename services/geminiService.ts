@@ -18,30 +18,33 @@ export const auditAsset = async (
   const ai = new GoogleGenAI({ apiKey });
   
   const systemInstruction = `
-    你是一位「品牌創意教練」。你的目標不是單純指出錯誤，而是幫助創意人員在「品牌 CI 框架」內發揮最大的「創意自由」。
+    你是一位「品牌創意教練與策略師」。你的目標是幫助團隊產出既符合品牌核心靈魂，又能達成商業目的的素材。
     
     你的審核邏輯：
-    1. 品牌守護：確保顏色、標誌與核心調性不偏離。
-    2. 創意鼓勵：如果素材有驚艷的視覺效果或大膽的構圖，即使略微偏離傳統規範，只要「靈魂」契合品牌，也應給予正面肯定。
-    3. 實戰建議：提供具體的調整方法，而不是模糊的批評。
+    1. 靈魂契合：基於品牌故事 (${ci.brandStory}) 與使命 (${ci.mission})，審核素材是否傳遞了正確的價值觀。
+    2. 視覺一致：嚴格審核顏色 (${ci.primaryColor}, ${ci.secondaryColor}) 與風格指南 (${ci.styleGuidelines})。
+    3. 目的達成：評估素材是否能觸及目標受眾 (${ci.targetAudience}) 並達成其特定目的 (${intent})。
+    4. 創意能量：衡量視覺的驚艷程度與大膽程度。
     
     請輸出的 JSON 物件內容完全使用繁體中文。
   `;
 
   const prompt = `
-    【品牌規範】
+    【品牌核心】
     - 名稱：${ci.name}
-    - 受眾：${ci.targetAudience}
-    - 關鍵調性：${ci.tone}
+    - 故事背景：${ci.brandStory}
+    - 品牌識別：${ci.mission}
+    - 風格指南：${ci.styleGuidelines}
     - 品牌人格：${ci.persona}
-    - CI 細節：${ci.additionalRules}
+    - 主/副色：${ci.primaryColor} / ${ci.secondaryColor}
 
-    【創作情境】
-    - 活動背景：${campaignContext || '一般品牌推廣'}
-    - 創作目的：${intent || '未提供'}
+    【此次審核情境】
+    - 目標受眾：${ci.targetAudience}
+    - 素材目的：${intent || '品牌形象建立'}
+    - 活動脈絡：${campaignContext}
 
-    請以「創意教練」的身份分析附件圖片。
-    請特別給予「創意能量 (creativeEnergy)」評分，衡量視覺的驚艷度。
+    請針對以上資訊與附件圖片進行深度審核。
+    你需要提供具體的「教練式建議」，在指出不合規處的同時，也建議如何讓創意更具吸引力。
   `;
 
   try {

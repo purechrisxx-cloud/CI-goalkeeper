@@ -9,9 +9,12 @@ export interface User {
 export interface BrandCI {
   id: string;
   name: string;
+  brandStory: string; // 品牌故事
+  mission: string;    // 品牌使命/識別
   primaryColor: string;
   secondaryColor: string;
   fontStyle: string;
+  styleGuidelines: string; // 風格指南
   tone: string;
   persona: string;
   targetAudience: string; 
@@ -35,8 +38,8 @@ export interface AuditMetric {
 
 export interface AuditResult {
   overallScore: number;
-  creativeEnergy: number; // 創意能量評分 (0-100)
-  visualImpact: number;   // 視覺衝擊力 (0-100)
+  creativeEnergy: number; 
+  visualImpact: number;   
   healthStatus: 'Excellent' | 'On-Brand' | 'Divergent' | 'Off-Brand';
   metrics: {
     colors: AuditMetric;
@@ -45,7 +48,7 @@ export interface AuditResult {
     composition: AuditMetric;
   };
   marketingCritique: string;
-  creativeCritique: string; // 針對創意的肯定與建議
+  creativeCritique: string; 
   suggestions: {
     compliance: string[];
     creative: string[];

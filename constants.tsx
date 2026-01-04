@@ -5,15 +5,18 @@ import { BrandCI } from './types';
 export const DEFAULT_CI: BrandCI = {
   id: 'footer-001',
   name: 'FOOTER',
+  brandStory: 'FOOTER 誕生於對極致舒適的追求。我們相信每一雙襪子、每一件貼身衣物都是生活的基石。透過不斷研發除臭科技與機能纖維，我們重新定義了「機能與美學」的界線。',
+  mission: '致力於成為亞洲機能穿著的領導品牌，提供不僅解決生活痛點，更展現自信態度的產品。',
   primaryColor: '#000000',
   secondaryColor: '#ffffff',
   fontStyle: 'Inter / 現代無襯線體',
+  styleGuidelines: '極簡主義、高對比度、留白美學。攝影風格強調光影質感與微距細節，避免過度飽和的色彩。',
   tone: '機能、自信、生活化、高品質',
   persona: '一位專業的機能穿著專家，強調舒適與科技的結合，口吻簡潔有力且具說服力。',
   targetAudience: '追求生活品質、注重機能性穿著、且對品牌質感有一定要求的現代消費者。',
-  logoDescription: 'FOOTER 標準字體 Logo。必須保持水平，四周留白需大於標準字高度的 0.5 倍。',
-  additionalRules: '優先使用真實生活場景攝影。視覺構圖需乾淨簡約。避免過度誇張的裝飾元素，強調產品本身的細節質感。',
-  ctaStrategy: 'CTA 必須清晰且具有行動導向，設計上需與背景形成高對比，圓角與陰影需細緻，營造出高端電子商務的互動感。'
+  logoDescription: 'FOOTER 標準字體 Logo。必須保持水平，四周留白需大於標準字高度의 0.5 倍。',
+  additionalRules: '優先使用真實生活場景攝影。視覺構圖需乾淨簡約。避免過度誇張的裝飾元素。',
+  ctaStrategy: 'CTA 必須清晰且具有行動導向，設計上需與背景形成高對比，圓角與陰影需細緻。'
 };
 
 export const Icons = {
