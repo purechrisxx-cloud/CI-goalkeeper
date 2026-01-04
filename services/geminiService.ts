@@ -9,12 +9,14 @@ export const auditAsset = async (
   campaignContext: string,
   modelName: string = 'gemini-3-flash-preview'
 ): Promise<AuditResult> => {
+  // 每次呼叫時才獲取，以確保獲得最新的 Key
   const apiKey = process.env.API_KEY;
   
-  if (!apiKey || apiKey === "undefined") {
+  if (!apiKey || apiKey === "undefined" || apiKey === "") {
     throw new Error("請先點擊頁面右上角的「連結 Google AI」按鈕以授權服務。");
   }
 
+  // 根據規範，每次請求前建立新實例
   const ai = new GoogleGenAI({ apiKey });
   
   const systemInstruction = `
@@ -96,7 +98,14 @@ export const auditAsset = async (
     if (!text) throw new Error("AI 回傳內容為空");
     return JSON.parse(text);
   } catch (error: any) {
-    console.error("Gemini Error:", error);
-    throw new Error(`分析出錯：${error.message}`);
+    console.error("Gemini API Error Detail:", error);
+    // 向外層拋出更具描述性的錯誤
+    if (error.message?.includes("403") || error.message?.includes("401")) {
+      throw new Error("API Key 權限不足或已過期，請確認是否為付費專案的 Key。");
+    }
+    if (error.message?.includes("404")) {
+      throw new Error("找不到指定的 AI 模型或實體。請重新選擇有效的 API Key。");
+    }
+    throw new Error(`AI 分析時發生錯誤：${error.message}`);
   }
 };
