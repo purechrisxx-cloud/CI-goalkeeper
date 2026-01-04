@@ -17,7 +17,7 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [currentGroupId, setCurrentGroupId] = useState<string | null>(null);
   
-  // 新增審核情境狀態
+  // 審核情境狀態
   const [assetIntent, setAssetIntent] = useState('');
   const [assetTargetAudience, setAssetTargetAudience] = useState(ci.targetAudience || '');
   
@@ -29,15 +29,20 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
     return assets
       .filter(a => a.groupId === currentGroupId)
       .sort((a, b) => b.version - a.version)
-      .slice(0, 4); // 包含當前這版，總共取四個
+      .slice(0, 4);
   }, [assets, currentGroupId]);
 
   const checkConnection = async () => {
     const hasEnvKey = !!process.env.API_KEY && process.env.API_KEY !== "undefined" && process.env.API_KEY !== "";
     const bridge = (window as any).aistudio;
+    
     if (bridge?.hasSelectedApiKey) {
-      const selected = await bridge.hasSelectedApiKey();
-      setIsConnected(hasEnvKey || selected);
+      try {
+        const selected = await bridge.hasSelectedApiKey();
+        setIsConnected(hasEnvKey || selected);
+      } catch {
+        setIsConnected(hasEnvKey);
+      }
     } else {
       setIsConnected(hasEnvKey);
     }
@@ -45,15 +50,27 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
 
   useEffect(() => {
     checkConnection();
-    const timer = setInterval(checkConnection, 3000);
+    const timer = setInterval(checkConnection, 5000);
     return () => clearInterval(timer);
   }, []);
 
   const handleConnectAI = async () => {
     const bridge = (window as any).aistudio;
     if (bridge?.openSelectKey) {
-      try { await bridge.openSelectKey(); setIsConnected(true); } catch (err) { console.error(err); }
-    } else { alert("請在支援 Google AI Studio 的環境下操作。"); }
+      try { 
+        await bridge.openSelectKey(); 
+        setIsConnected(true); 
+      } catch (err) { 
+        console.error(err); 
+      }
+    } else {
+      // 如果沒有 bridge 但有 ENV KEY，則直接視為已連結
+      if (!!process.env.API_KEY) {
+        setIsConnected(true);
+      } else {
+        alert("未偵測到 API Key。請確認環境變數或在支援的 AI 環境中運行。");
+      }
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -70,11 +87,9 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
 
   const handleAudit = async () => {
     if (!file) return;
-    if (!isConnected) { handleConnectAI(); return; }
     
     setLoading(true);
     try {
-      // 將輸入的情境資訊傳遞給 AI
       const auditResult = await auditAsset(
         file, 
         { ...ci, targetAudience: assetTargetAudience }, 
@@ -84,15 +99,24 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
       );
       setResult(auditResult);
       
-      // 判定是否為迭代：如果 10 分鐘內有上傳，視為同一組
       const lastAsset = assets[0];
-      const isIteration = lastAsset && (Date.now() - lastAsset.timestamp < 10 * 60 * 1000);
+      const isIteration = lastAsset && (Date.now() - lastAsset.timestamp < 15 * 60 * 1000);
       const gid = isIteration ? lastAsset.groupId : Math.random().toString(36).substr(2, 9);
       setCurrentGroupId(gid);
 
       onAssetSave(file, `創意迭代 ${new Date().toLocaleTimeString()}`, auditResult, ci, gid);
     } catch (error: any) {
-      alert(error.message);
+      if (error.message.includes("Requested entity was not found")) {
+        const bridge = (window as any).aistudio;
+        if (bridge?.openSelectKey) {
+          alert("API Key 已失效，請重新選擇。");
+          await bridge.openSelectKey();
+        } else {
+          alert(error.message);
+        }
+      } else {
+        alert(error.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -121,20 +145,19 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
           ) : (
             <div className="flex items-center gap-3 bg-white/50 backdrop-blur-md px-5 py-3 rounded-2xl border border-white">
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-              <span className="text-emerald-700 font-black text-[10px] uppercase tracking-widest">AI Agent Ready</span>
+              <span className="text-emerald-700 font-black text-[10px] uppercase tracking-widest">AI Agent Active</span>
             </div>
           )}
         </div>
         <h1 className="text-5xl font-black brand-font tracking-tighter mt-12 mb-4">
           <span className="gradient-text">Creative Hub</span>
         </h1>
-        <p className="text-slate-500 font-medium text-center">在此上傳素材，設定審核情境，AI 將提供精確建議。</p>
+        <p className="text-slate-500 font-medium text-center">在此上傳素材，AI 將對比歷史版本並根據品牌核心給予建議。</p>
       </header>
 
       {!result ? (
         <div className="flex flex-col items-center space-y-10">
           <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-10">
-            {/* 左側：圖片上傳區 */}
             <div onClick={() => !loading && fileInputRef.current?.click()} className={`group w-full aspect-square rounded-[3rem] border-4 border-dashed transition-all duration-700 relative overflow-hidden flex items-center justify-center ${file ? 'border-indigo-400 bg-white shadow-3xl' : 'border-slate-200 bg-white/40 hover:bg-white cursor-pointer'}`}>
               <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} disabled={loading} />
               {file ? (
@@ -150,14 +173,13 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
               )}
             </div>
 
-            {/* 右側：審核參數設定 */}
             <div className="bg-white/60 backdrop-blur-xl rounded-[3rem] p-10 border border-white shadow-sm space-y-8">
               <div className="space-y-4">
                 <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest block ml-2">素材目的 (Asset Intent)</label>
                 <textarea 
                   value={assetIntent}
                   onChange={(e) => setAssetIntent(e.target.value)}
-                  placeholder="例如：雙 11 活動主視覺、新品介紹、Facebook 廣告等..."
+                  placeholder="例如：週年慶主視覺、Facebook 廣告、產品情境照..."
                   className={`${inputStyle} h-32 resize-none`}
                 />
               </div>
@@ -168,14 +190,14 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
                   type="text"
                   value={assetTargetAudience}
                   onChange={(e) => setAssetTargetAudience(e.target.value)}
-                  placeholder="預設將使用品牌 CI 定義的受眾"
+                  placeholder="例如：25-35 歲追求品質的都會女性"
                   className={inputStyle}
                 />
               </div>
 
               <div className="pt-4">
                 <p className="text-xs text-slate-400 italic leading-relaxed">
-                  ※ 提供更精確的目的與受眾資訊，能讓 AI 教練給予更具「商業轉化力」的建議。
+                  ※ AI 將根據品牌的故事與人格，判斷素材是否能有效觸及此受眾。
                 </p>
               </div>
             </div>
@@ -183,14 +205,13 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
 
           <button onClick={handleAudit} disabled={!file || loading} className={`px-16 py-5 rounded-full font-black tracking-[0.2em] transition-all flex items-center gap-4 ${!file || loading ? 'bg-slate-100 text-slate-300' : 'bg-slate-950 text-white hover:bg-indigo-600 hover:-translate-y-1 active:scale-95 shadow-2xl'}`}>
             {loading ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : <Icons.Zap />}
-            {loading ? 'AI 教練分析中...' : '執行針對性審核'}
+            {loading ? 'AI 教練分析中...' : '開始深度審核'}
           </button>
         </div>
       ) : (
         <div className="animate-in fade-in slide-in-from-bottom-12 duration-1000 space-y-10">
-          {/* 版本對照牆 */}
           <div className="bg-white/40 backdrop-blur-xl rounded-[4rem] p-10 border border-white shadow-sm overflow-hidden">
-            <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.4em] mb-8 ml-2">Iteration Comparison (Last 3 Versions)</h3>
+            <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.4em] mb-8 ml-2">Iteration History (Compare with previous 3)</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
               {versionHistory.map((v, i) => (
                 <div key={v.id} className={`group relative rounded-[2.5rem] overflow-hidden border-2 transition-all ${i === 0 ? 'border-indigo-600 shadow-2xl scale-105 z-10' : 'border-white opacity-60 hover:opacity-100'}`}>
@@ -213,7 +234,7 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
               ))}
               {versionHistory.length < 4 && Array(4 - versionHistory.length).fill(0).map((_, i) => (
                 <div key={i} className="aspect-[4/5] rounded-[2.5rem] bg-slate-100/50 border-2 border-dashed border-slate-200 flex items-center justify-center">
-                  <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Pending Version</span>
+                  <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Pending</span>
                 </div>
               ))}
             </div>
@@ -222,20 +243,18 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-10">
             <div className="xl:col-span-4 space-y-8">
               <div className="bg-slate-950 rounded-[3rem] p-12 text-white shadow-2xl relative overflow-hidden">
-                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em] mb-6">CI Compliance</p>
+                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em] mb-6">CI Compliance Index</p>
                 <div className="flex items-baseline gap-4 mb-10">
                   <h3 className="text-8xl font-black brand-font">{result.overallScore}</h3>
                   <span className="text-xl font-bold text-slate-500">/ 100</span>
                 </div>
-                <div className="space-y-8">
-                  <div>
-                    <div className="flex justify-between text-[10px] font-black uppercase tracking-widest mb-3">
-                      <span>Creative Energy</span>
-                      <span className="text-indigo-400">{result.creativeEnergy}%</span>
-                    </div>
-                    <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
-                      <div className="h-full bg-indigo-500" style={{ width: `${result.creativeEnergy}%` }}></div>
-                    </div>
+                <div>
+                  <div className="flex justify-between text-[10px] font-black uppercase tracking-widest mb-3">
+                    <span>Creative Energy</span>
+                    <span className="text-indigo-400">{result.creativeEnergy}%</span>
+                  </div>
+                  <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                    <div className="h-full bg-indigo-500" style={{ width: `${result.creativeEnergy}%` }}></div>
                   </div>
                 </div>
               </div>
@@ -249,18 +268,17 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
 
             <div className="xl:col-span-8">
               <div className="bg-white rounded-[4rem] p-12 border border-slate-100 shadow-2xl h-full">
-                <h3 className="text-2xl font-black text-slate-950 mb-12 brand-font">審核報告與優化策略</h3>
+                <h3 className="text-2xl font-black text-slate-950 mb-12 brand-font">策略審核報告</h3>
                 
-                {/* 顯示本次審核的背景資訊 */}
                 <div className="mb-10 p-6 bg-slate-50 rounded-3xl border border-slate-100 flex gap-8 items-center">
                   <div className="flex-1">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">針對受眾</p>
-                    <p className="text-sm font-bold text-slate-700">{assetTargetAudience}</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">受眾針對性</p>
+                    <p className="text-sm font-bold text-slate-700">{assetTargetAudience || ci.targetAudience}</p>
                   </div>
                   <div className="w-px h-8 bg-slate-200"></div>
                   <div className="flex-[2]">
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">素材目的</p>
-                    <p className="text-sm font-bold text-slate-700 truncate">{assetIntent || '一般品牌推廣'}</p>
+                    <p className="text-sm font-bold text-slate-700 truncate">{assetIntent || '通用品牌建立'}</p>
                   </div>
                 </div>
 
@@ -284,9 +302,11 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
                     ))}
                   </div>
                 </div>
-                <div className="mt-16 pt-10 border-t border-slate-100 flex justify-between">
-                  <button onClick={() => { setResult(null); setFile(null); }} className="text-indigo-600 font-black text-[11px] uppercase tracking-widest flex items-center gap-3">重新開始</button>
-                  <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Footer BrandGuard v3.5</p>
+                <div className="mt-16 pt-10 border-t border-slate-100 flex justify-between items-center">
+                  <button onClick={() => { setResult(null); setFile(null); }} className="text-indigo-600 font-black text-[11px] uppercase tracking-widest flex items-center gap-3">
+                    重新開始
+                  </button>
+                  <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Footer BrandGuard v4.0</p>
                 </div>
               </div>
             </div>
