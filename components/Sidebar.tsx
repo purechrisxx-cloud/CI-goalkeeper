@@ -11,54 +11,53 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, activeProfileName, user, onLogout }) => {
-  const [connectionType, setConnectionType] = useState<'system' | 'user' | 'none'>('none');
+  const [connectionStatus, setConnectionStatus] = useState<'system' | 'user' | 'none'>('none');
 
   useEffect(() => {
-    const checkConnection = async () => {
-      const aistudio = (window as any).aistudio;
-      
-      // 1. 檢查是否有開發者預設的系統金鑰 (process.env.API_KEY)
+    const checkStatus = async () => {
+      // 1. 檢查是否有 Vercel/系統環境變數提供的 Key
       if (process.env.API_KEY && process.env.API_KEY !== "") {
-        setConnectionType('system');
+        setConnectionStatus('system');
         return;
       }
 
-      // 2. 檢查是否有使用者透過 aistudio 選取的個人金鑰
+      // 2. 檢查是否在 AI Studio 預覽環境中並已選取 Key
+      const aistudio = (window as any).aistudio;
       if (aistudio && typeof aistudio.hasSelectedApiKey === 'function') {
         const hasKey = await aistudio.hasSelectedApiKey();
         if (hasKey) {
-          setConnectionType('user');
+          setConnectionStatus('user');
           return;
         }
       }
       
-      setConnectionType('none');
+      setConnectionStatus('none');
     };
 
-    checkConnection();
-    const timer = setInterval(checkConnection, 3000);
+    checkStatus();
+    const timer = setInterval(checkStatus, 3000);
     return () => clearInterval(timer);
   }, []);
 
-  const handleConnect = async () => {
+  const handleConnectClick = async () => {
     const aistudio = (window as any).aistudio;
     
     if (aistudio && typeof aistudio.openSelectKey === 'function') {
       try {
         await aistudio.openSelectKey();
-        // 規範：呼叫後應假設成功並繼續
-        setConnectionType('user');
+        setConnectionStatus('user');
       } catch (e) {
-        console.error("Connection failed", e);
+        console.error("Failed to open key selector", e);
       }
-    } else {
-      // 在不支援 aistudio 選取器的正式瀏覽器環境下的處理
+    } else if (connectionStatus === 'none') {
+      // 在正式瀏覽器且無環境變數的情況下，給予明確指引
       alert(
-        "【AI 核心連線指南】\n\n" +
-        "目前您處於獨立瀏覽器模式。如需啟動 AI 功能，請：\n" +
-        "1. 在部署平台 (如 Vercel/Netlify) 設定 API_KEY 環境變數。\n" +
-        "2. 或確保在 Google AI Studio 的專屬預覽連結中開啟本網站。\n\n" +
-        "本系統基於安全規範，不提供直接手打輸入金鑰的欄位。"
+        "【AI 核心啟動指引】\n\n" +
+        "目前尚未偵測到 API 金鑰，請執行以下步驟：\n\n" +
+        "1. 管理者請前往 Vercel 後台設定 Environment Variable。\n" +
+        "2. 變數名稱設定為：API_KEY\n" +
+        "3. 填入 Google Gemini API Key 後重新部署。\n\n" +
+        "設定完成後，全體團隊成員即可直接使用 AI 審核功能。"
       );
     }
   };
@@ -97,32 +96,28 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, activeProfil
       </nav>
 
       <div className="p-8 space-y-6">
-        {/* AI Key Status Monitoring */}
+        {/* AI Key Status Monitoring Dashboard */}
         <div className="bg-white/5 rounded-[2rem] p-6 border border-white/5 space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-[9px] font-black uppercase tracking-[0.25em] text-slate-500">AI Connectivity</p>
-            <div className={`w-2 h-2 rounded-full ${connectionType !== 'none' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-slate-600'}`}></div>
+            <p className="text-[9px] font-black uppercase tracking-[0.25em] text-slate-500">AI Core Status</p>
+            <div className={`w-2.5 h-2.5 rounded-full ${connectionStatus !== 'none' ? 'bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.6)]' : 'bg-slate-600 animate-pulse'}`}></div>
           </div>
           
           <div className="px-1">
-            <p className="text-[10px] font-bold text-slate-400">
-              {connectionType === 'system' ? '已連線 (系統預設)' : 
-               connectionType === 'user' ? '已連線 (個人帳戶)' : '尚未偵測到金鑰'}
+            <p className="text-[10px] font-bold text-slate-400 leading-tight">
+              {connectionStatus === 'system' ? '連線來源：團隊共用金鑰' : 
+               connectionStatus === 'user' ? '連線來源：個人開發金鑰' : '狀態：尚未偵測到金鑰'}
             </p>
           </div>
 
           <button 
-            onClick={handleConnect}
+            onClick={handleConnectClick}
             className={`w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-              connectionType !== 'none' ? 'bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20' : 'bg-white text-slate-950 hover:scale-105'
+              connectionStatus !== 'none' ? 'bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20' : 'bg-white text-slate-950 hover:scale-105 active:scale-95'
             }`}
           >
-            {connectionType !== 'none' ? '管理個人金鑰' : '啟動 AI 核心'}
+            {connectionStatus !== 'none' ? '管理 AI 配置' : '立即啟動 AI 核心'}
           </button>
-          
-          <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="block text-[8px] text-center text-slate-600 hover:text-indigo-400 transition-colors uppercase tracking-widest">
-            查看帳單說明
-          </a>
         </div>
 
         <div className="bg-white/5 rounded-[2rem] p-6 border border-white/5">

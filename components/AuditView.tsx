@@ -24,8 +24,11 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
 
   useEffect(() => {
     const checkAuth = async () => {
+      // 同步檢查系統變數與 AI Studio 選取器
       const aistudio = (window as any).aistudio;
-      if (process.env.API_KEY && process.env.API_KEY !== "") {
+      const systemKey = process.env.API_KEY && process.env.API_KEY !== "";
+      
+      if (systemKey) {
         setHasKey(true);
       } else if (aistudio && typeof aistudio.hasSelectedApiKey === 'function') {
         const val = await aistudio.hasSelectedApiKey();
@@ -42,10 +45,21 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
   const handleOpenKeySelector = async () => {
     const aistudio = (window as any).aistudio;
     if (aistudio && typeof aistudio.openSelectKey === 'function') {
-      await aistudio.openSelectKey();
-      setHasKey(true);
+      try {
+        await aistudio.openSelectKey();
+        setHasKey(true);
+      } catch (e) {
+        console.error(e);
+      }
     } else {
-      alert("啟動失敗：目前瀏覽器環境未提供金鑰連線介面。請在專屬預覽連結中開啟，或請技術管理員配置環境變數 API_KEY。");
+      // 同 Sidebar 的提示邏輯
+      alert(
+        "【AI 引擎連線失敗】\n\n" +
+        "目前網頁無法直接存取 Google Gemini。請確保：\n" +
+        "1. 管理者已在 Vercel 設定 API_KEY 環境變數。\n" +
+        "2. 或者您正透過 Google AI Studio 的預覽功能開啟此網頁。\n\n" +
+        "若您是管理者，請在 Vercel Dashboard -> Settings -> Environment Variables 加入名為 API_KEY 的變數。"
+      );
     }
   };
 
@@ -97,7 +111,7 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
       console.error(error);
       if (error.message.includes("Requested entity was not found") || error.message.includes("API key")) {
         setHasKey(false);
-        alert("連線失效或金鑰已過期，請點擊重新啟動 AI 核心。");
+        alert("金鑰連線失效，請點擊啟動 AI 核心重新嘗試。");
         handleOpenKeySelector();
       } else {
         alert(`分析發生錯誤：${error.message}`);
@@ -114,16 +128,16 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
       {/* Top Banner for Status */}
       <div className="flex items-center justify-between bg-white/40 backdrop-blur-xl px-10 py-5 rounded-[2.5rem] border border-white shadow-sm">
         <div className="flex items-center gap-5">
-          <div className={`w-3 h-3 rounded-full ${hasKey ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`}></div>
+          <div className={`w-3 h-3 rounded-full ${hasKey ? 'bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-amber-400'}`}></div>
           <div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">AI Analysis Core</p>
             <p className="text-sm font-black text-slate-900 brand-font">
-              {hasKey ? 'Gemini 引擎已就緒' : '待連線：需啟動核心以開始審核'}
+              {hasKey ? 'Gemini 智慧引擎：運作中' : '連線狀態：待啟動'}
             </p>
           </div>
         </div>
         {!hasKey && (
-          <button onClick={handleOpenKeySelector} className="bg-slate-950 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-xl">
+          <button onClick={handleOpenKeySelector} className="bg-slate-950 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-xl active:scale-95">
             立即啟動核心
           </button>
         )}
@@ -189,7 +203,7 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
             }`}
           >
             {loading ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : <Icons.Zap />}
-            {loading ? 'AI 教練正在審閱...' : '啟動品牌深度分析'}
+            {loading ? 'AI 教練正在審閱...' : hasKey ? '啟動品牌深度分析' : '啟動 AI 核心後繼續'}
           </button>
         </div>
       ) : (
