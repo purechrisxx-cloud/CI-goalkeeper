@@ -9,11 +9,13 @@ export const auditAsset = async (
   campaignContext: string = '團隊內部創意審核',
   modelName: string = 'gemini-3-flash-preview'
 ): Promise<AuditResult> => {
-  // CRITICAL: 根據規範，必須在每次請求前建立新實例，以確保使用最新的 process.env.API_KEY
   const apiKey = process.env.API_KEY;
   
-  // 這裡不直接報錯 API Key 缺失，因為我們讓 UI 去處理連線邏輯
-  const ai = new GoogleGenAI({ apiKey: apiKey || '' });
+  if (!apiKey) {
+    throw new Error("API Key configuration missing. If you're on a standalone site, please set the environment variable.");
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
   
   const systemInstruction = `
     你是一位專業的「品牌創意教練」。任務是協助產出符合 ${ci.name} 品牌規範且具市場共鳴的素材。
@@ -79,14 +81,10 @@ export const auditAsset = async (
     });
 
     const result = response.text;
-    if (!result) throw new Error("AI 回傳內容為空");
+    if (!result) throw new Error("AI response was empty.");
     return JSON.parse(result);
   } catch (error: any) {
     console.error("Gemini API Error:", error);
-    // 捕獲特定金鑰錯誤
-    if (error.message?.includes("API key") || error.message?.includes("403") || error.message?.includes("401")) {
-      throw new Error("AI 授權無效。請點擊上方按鈕重新選取有效的 API 金鑰。");
-    }
     throw error;
   }
 };
