@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { BrandCI, AuditResult, Asset } from '../types';
 import { auditAsset } from '../services/geminiService';
 import { Icons } from '../constants';
@@ -15,11 +15,37 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AuditResult | null>(null);
   const [currentGroupId, setCurrentGroupId] = useState<string | null>(null);
+  const [hasUserKey, setHasUserKey] = useState(false);
   
+  // 情境設定
   const [assetIntent, setAssetIntent] = useState('');
   const [assetTargetAudience, setAssetTargetAudience] = useState(ci.targetAudience || '');
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 初始化檢查金鑰狀態
+  useEffect(() => {
+    const checkKey = async () => {
+      if ((window as any).aistudio) {
+        const isSelected = await (window as any).aistudio.hasSelectedApiKey();
+        setHasUserKey(isSelected);
+      }
+    };
+    checkKey();
+    // 持續偵測，因為使用者可能在另一個標籤頁完成授權
+    const interval = setInterval(checkKey, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleOpenKeySelector = async () => {
+    if ((window as any).aistudio) {
+      await (window as any).aistudio.openSelectKey();
+      // 根據規範，觸發後即假設成功
+      setHasUserKey(true);
+    } else {
+      alert("此環境不支援金鑰選擇器，請確認環境配置。");
+    }
+  };
 
   const versionHistory = useMemo(() => {
     if (!currentGroupId) return [];
@@ -44,13 +70,19 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
   const handleAudit = async () => {
     if (!file) return;
     
+    // 如果沒有 Key，強制先開啟選擇器
+    if (!hasUserKey) {
+      await handleOpenKeySelector();
+      return;
+    }
+
     setLoading(true);
     try {
       const auditResult = await auditAsset(
         file, 
         { ...ci, targetAudience: assetTargetAudience }, 
         assetIntent, 
-        '團隊內部創意審核', 
+        '團隊多人協作審核', 
         'gemini-3-flash-preview'
       );
       
@@ -63,7 +95,14 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
 
       onAssetSave(file, `創意迭代 ${new Date().toLocaleTimeString()}`, auditResult, ci, gid);
     } catch (error: any) {
-      alert(error.message);
+      console.error(error);
+      // 如果發生權限錯誤，重置狀態讓使用者重新選擇
+      if (error.message.includes("not found") || error.message.includes("API key")) {
+        setHasUserKey(false);
+        alert("AI 授權已失效，請點擊右上方按鈕重新選取金鑰。");
+      } else {
+        alert(`分析失敗：${error.message}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -75,17 +114,31 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
     <div className="max-w-7xl mx-auto space-y-12 pb-32">
       <header className="relative flex flex-col items-center pt-10 pb-8">
         <div className="absolute top-0 right-0">
-          <div className="flex items-center gap-3 bg-white/50 backdrop-blur-md px-5 py-3 rounded-2xl border border-white">
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
-            <span className="text-emerald-700 font-black text-[10px] uppercase tracking-widest">
-              AI Engine Ready
-            </span>
-          </div>
+          {!hasUserKey ? (
+            <button 
+              onClick={handleOpenKeySelector}
+              className="group flex items-center gap-3 bg-rose-500 hover:bg-rose-600 text-white px-6 py-3 rounded-2xl transition-all shadow-xl hover:-translate-y-0.5 active:scale-95"
+            >
+              <Icons.Zap />
+              <span className="font-black text-[11px] uppercase tracking-widest">授權 AI 金鑰</span>
+            </button>
+          ) : (
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex items-center gap-3 bg-white/50 backdrop-blur-md px-5 py-3 rounded-2xl border border-white">
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
+                <span className="text-emerald-700 font-black text-[10px] uppercase tracking-widest">
+                  AI Ready
+                </span>
+              </div>
+              <button onClick={handleOpenKeySelector} className="text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-indigo-600 transition-colors">切換帳號或專案</button>
+            </div>
+          )}
         </div>
+        
         <h1 className="text-5xl font-black brand-font tracking-tighter mt-12 mb-4">
           <span className="gradient-text">Creative Hub</span>
         </h1>
-        <p className="text-slate-500 font-medium text-center">在此輸入創意素材，AI 教練將針對品牌規範給予深度建議。</p>
+        <p className="text-slate-500 font-medium text-center">讓團隊成員使用各自的 AI 授權，保有創意自由與資源彈性。</p>
       </header>
 
       {!result ? (
@@ -112,13 +165,13 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
                 <textarea 
                   value={assetIntent}
                   onChange={(e) => setAssetIntent(e.target.value)}
-                  placeholder="例如：母親節專案、IG 限時動態、官網 Banner 優化..."
+                  placeholder="例如：母親節促銷、IG 品牌形象貼文..."
                   className={`${inputStyle} h-32 resize-none`}
                 />
               </div>
 
               <div className="space-y-4">
-                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest block ml-2">目標受眾 (預設對標 CI)</label>
+                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest block ml-2">目標受眾</label>
                 <input 
                   type="text"
                   value={assetTargetAudience}
@@ -128,20 +181,26 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
                 />
               </div>
 
-              <div className="pt-4 border-t border-slate-50">
+              <div className="pt-4 border-t border-slate-50 flex items-start gap-3">
+                <div className="mt-1"><Icons.Alert /></div>
                 <p className="text-[11px] text-slate-400 italic leading-relaxed font-bold">
-                  AI 提示：設定具體的目的能幫助 AI 提供更具建設性的建議。
+                  團隊多人模式：分析前請確保右上方顯示 AI Ready。若使用頻率較高，建議各自申請免費 API Key 以獲得最佳體驗。
                 </p>
               </div>
             </div>
           </div>
 
-          <button onClick={handleAudit} disabled={!file || loading} className={`px-16 py-5 rounded-full font-black tracking-[0.2em] transition-all flex items-center gap-4 ${!file || loading ? 'bg-slate-100 text-slate-300' : 'bg-slate-950 text-white hover:bg-indigo-600 hover:-translate-y-1 active:scale-95 shadow-2xl'}`}>
+          <button 
+            onClick={handleAudit} 
+            disabled={!file || loading} 
+            className={`px-16 py-5 rounded-full font-black tracking-[0.2em] transition-all flex items-center gap-4 ${!file || loading ? 'bg-slate-100 text-slate-300' : 'bg-slate-950 text-white hover:bg-indigo-600 hover:-translate-y-1 active:scale-95 shadow-2xl'}`}
+          >
             {loading ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : <Icons.Zap />}
-            {loading ? 'AI 教練正在審閱...' : '啟動品牌深度分析'}
+            {loading ? 'AI 教練正在審閱...' : hasUserKey ? '啟動品牌深度分析' : '請先授權 AI 金鑰'}
           </button>
         </div>
       ) : (
+        /* ... 保留既有的分析結果介面 ... */
         <div className="animate-in fade-in slide-in-from-bottom-12 duration-1000 space-y-10">
           <div className="bg-white/40 backdrop-blur-xl rounded-[4rem] p-10 border border-white shadow-sm overflow-hidden">
             <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.4em] mb-8 ml-2">Creative Evolution</h3>
@@ -155,11 +214,6 @@ const AuditView: React.FC<AuditViewProps> = ({ ci, onAssetSave, assets }) => {
                     <p className="text-[10px] font-black text-white/60 uppercase">Version {v.version}</p>
                     <p className="text-2xl font-black text-white brand-font">{v.auditResult?.overallScore}</p>
                   </div>
-                </div>
-              ))}
-              {versionHistory.length < 4 && Array(4 - versionHistory.length).fill(0).map((_, i) => (
-                <div key={i} className="aspect-[4/5] rounded-[2.5rem] bg-slate-100/50 border-2 border-dashed border-slate-200 flex items-center justify-center">
-                  <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Next Iteration</span>
                 </div>
               ))}
             </div>
